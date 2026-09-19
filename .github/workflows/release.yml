@@ -1,0 +1,16 @@
+name: release
+on:
+  push:
+    tags: ['v*']
+jobs:
+  mac:
+    runs-on: macos-14
+    strategy: { matrix: { arch: [arm64, amd64] } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version-file: go.mod }
+      - run: go test ./...
+      - run: ARCH=${{ matrix.arch }} build/mac.sh "${GITHUB_REF_NAME}"
+      - uses: softprops/action-gh-release@v2
+        with: { files: dist/MOX-Access-mac-${{ matrix.arch }}.zip }
