@@ -5,6 +5,14 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
+)
+
+// repos.json comes from the server export; names become directories and origins become gh arguments, so both are
+// checked here before anything is executed or created.
+var (
+	repoNameRe   = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._ -]{0,99}$`)
+	repoOriginRe = regexp.MustCompile(`^https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(\.git)?$`)
 )
 
 // CloneRepos recreates ~/Claud/projects: repositories with an origin are cloned with gh under the employee's own
@@ -16,6 +24,14 @@ func CloneRepos(exportDir, projectsDir string, repos []Repo, log func(string)) (
 	}
 	done := 0
 	for _, r := range repos {
+		if !repoNameRe.MatchString(r.Name) || r.Name == ".." || r.Name == "." {
+			log("пропуск: недопустимое имя репо в экспорте")
+			continue
+		}
+		if r.Origin != nil && !repoOriginRe.MatchString(*r.Origin) {
+			log("пропуск " + r.Name + ": origin не похож на адрес GitHub")
+			continue
+		}
 		dest := filepath.Join(projectsDir, r.Name)
 		if _, err := os.Stat(dest); err == nil {
 			log("пропуск " + r.Name + ": каталог уже есть")
@@ -23,12 +39,12 @@ func CloneRepos(exportDir, projectsDir string, repos []Repo, log func(string)) (
 		}
 		if r.Origin != nil && r.Pushed {
 			log("клонирую " + r.Name)
-			cmd := exec.Command("gh", "repo", "clone", *r.Origin, dest)
+			cmd := exec.Command("gh", "repo", "clone", "--", *r.Origin, dest)
 			if out, err := cmd.CombinedOutput(); err != nil {
 				return done, fmt.Errorf("клон %s: %v: %s", r.Name, err, out)
 			}
 			if r.Branch != "" && r.Branch != "HEAD" {
-				if out, err := exec.Command("git", "-C", dest, "checkout", "-q", r.Branch).CombinedOutput(); err != nil {
+				if out, err := exec.Command("git", "-C", dest, "checkout", "-q", "--", r.Branch).CombinedOutput(); err != nil {
 					log(fmt.Sprintf("ветка %s в %s не переключилась: %s", r.Branch, r.Name, out))
 				}
 			}
@@ -39,7 +55,7 @@ func CloneRepos(exportDir, projectsDir string, repos []Repo, log func(string)) (
 				continue
 			}
 			log("копирую " + r.Name + " (без origin)")
-			if out, err := exec.Command("cp", "-a", src, dest).CombinedOutput(); err != nil {
+			if out, err := exec.Command("cp", "-a", "--", src, dest).CombinedOutput(); err != nil {
 				return done, fmt.Errorf("копия %s: %v: %s", r.Name, err, out)
 			}
 		}

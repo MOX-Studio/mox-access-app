@@ -159,3 +159,15 @@ func TestExtractRefusesEscapes(t *testing.T) {
 		t.Fatal("escaped file written")
 	}
 }
+
+func TestCloneReposRejectsHostileEntries(t *testing.T) {
+	dir := t.TempDir()
+	evil := "--upload-pack=touch /tmp/pwned"
+	n, err := CloneRepos(dir, filepath.Join(dir, "projects"), []Repo{{Name: "../escape", Origin: nil}, {Name: "ok", Origin: &evil, Pushed: true}}, func(string) {})
+	if err != nil || n != 0 {
+		t.Fatalf("n=%d err=%v", n, err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "escape")); !os.IsNotExist(err) {
+		t.Fatal("path traversal")
+	}
+}
