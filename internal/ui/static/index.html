@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><title>MOX Access</title><meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+:root{--bg:#0f1115;--fg:#e8e8ea;--mut:#8b8f98;--card:#171a21;--ok:#3fb950;--bad:#f85149;--acc:#e0b400;--line:#262a33}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 -apple-system,Inter,system-ui,sans-serif;padding:24px 16px;max-width:760px;margin-inline:auto}
+h1{font-size:20px;margin:0 0 4px}h2{font-size:13px;color:var(--mut);text-transform:uppercase;letter-spacing:.08em;margin:24px 0 8px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px}
+.row{display:flex;justify-content:space-between;gap:12px;padding:6px 0;border-bottom:1px solid var(--line)}.row:last-child{border:0}.k{color:var(--mut)}
+.on{color:var(--ok)}.off{color:var(--mut)}.bad{color:var(--bad)}
+button{background:#22262f;color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:8px 14px;font:inherit;cursor:pointer}button.primary{background:var(--acc);color:#111;border-color:var(--acc);font-weight:600}button:disabled{opacity:.5;cursor:default}
+.actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+pre{background:#0b0d11;border:1px solid var(--line);border-radius:8px;padding:12px;font-size:12px;max-height:280px;overflow:auto;white-space:pre-wrap}
+ol{padding-left:20px}li{margin:4px 0}.hint{color:var(--mut);font-size:13px}
+</style></head><body>
+<h1>MOX Access</h1><div class="hint" id="ver"></div>
+<h2>Состояние</h2>
+<div class="card">
+ <div class="row"><span class="k">Корпоративный Codex</span><span id="mode">…</span></div>
+ <div class="row"><span class="k">Сотрудник</span><span id="emp">—</span></div>
+ <div class="row"><span class="k">Туннель к шлюзу</span><span id="tun">—</span></div>
+ <div class="row"><span class="k">Ключ MOX</span><span id="key">—</span></div>
+ <div class="row"><span class="k">Набор MOX (harness)</span><span id="har">—</span></div>
+ <div class="actions">
+  <button class="primary" id="toggle">…</button>
+  <button id="check">Проверить</button>
+  <button id="harness">Обновить набор MOX</button>
+  <button id="migrate">Перенести с сервера</button>
+ </div>
+ <div class="hint" id="msg"></div>
+</div>
+<h2>Как подключиться</h2>
+<div class="card"><ol>
+ <li>Получите у Дениса файл <b>.moxaccess</b> и импортируйте его через меню в строке состояния («Импортировать .moxaccess…»).</li>
+ <li>Нажмите <b>Включить корпоративный Codex</b>. macOS один раз попросит пароль — это доверие сертификату шлюза.</li>
+ <li>Codex перезапустится и войдёт под вашей рабочей почтой. «Обновить набор MOX» подключит правила и скиллы команды; «Перенести с сервера» — ваши треды и проекты (нужен экспорт, его делает Денис).</li>
+ <li>Вернуться к личному Codex — та же кнопка: <b>Выключить</b>.</li>
+</ol></div>
+<h2>Журнал</h2>
+<pre id="log">…</pre>
+<script>
+const $=id=>document.getElementById(id);
+async function api(p,m='GET'){const r=await fetch(p,{method:m});const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.error||r.statusText);return j;}
+async function refresh(){try{const s=await api('/api/status');$('ver').textContent='версия '+s.version;
+ const on=s.mode==='corporate';$('mode').innerHTML=on?'<span class="on">включён</span>':'<span class="off">выключен (личный)</span>';
+ $('emp').textContent=s.employee||'файл .moxaccess не импортирован';
+ $('tun').innerHTML=on?(s.tunnel.connected?'<span class="on">подключён</span>':'<span class="bad">нет соединения'+(s.tunnel.lastError?' — '+s.tunnel.lastError:'')+'</span>'):'—';
+ $('key').textContent=s.keyText||'—';$('har').textContent=s.harness?('v'+s.harness):'не подключён';
+ $('toggle').textContent=on?'Выключить корпоративный Codex':'Включить корпоративный Codex';
+ for(const b of ['toggle','check','harness','migrate'])$(b).disabled=s.busy||!s.employee;
+ const l=await fetch('/api/log');$('log').textContent=await l.text();}catch(e){$('msg').textContent=e.message;}}
+async function act(p,label){$('msg').textContent=label+'…';try{const j=await api(p,'POST');$('msg').textContent=j.message||'готово';}catch(e){$('msg').textContent='Ошибка: '+e.message;}refresh();}
+$('toggle').onclick=async()=>{const s=await api('/api/status');act(s.mode==='corporate'?'/api/disable':'/api/enable',s.mode==='corporate'?'Выключаю':'Включаю');};
+$('check').onclick=()=>act('/api/check','Проверяю');$('harness').onclick=()=>act('/api/harness','Обновляю набор');$('migrate').onclick=()=>{if(confirm('Codex будет закрыт на время переноса. Продолжить?'))act('/api/migrate','Переношу');};
+refresh();setInterval(refresh,5000);
+</script></body></html>
