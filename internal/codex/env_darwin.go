@@ -13,7 +13,10 @@ import (
 
 const envLabel = "ru.mox.access.env"
 
-func envPlistPath() string { h, _ := os.UserHomeDir(); return filepath.Join(h, "Library", "LaunchAgents", envLabel+".plist") }
+func envPlistPath() string {
+	h, _ := os.UserHomeDir()
+	return filepath.Join(h, "Library", "LaunchAgents", envLabel+".plist")
+}
 
 // renderEnvPlist is the LaunchAgent that re-applies the variables at every login: Codex Desktop is a GUI application and
 // reads its environment from launchd, never from a shell profile. launchd expands nothing, so values are final paths.

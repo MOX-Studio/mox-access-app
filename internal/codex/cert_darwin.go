@@ -8,7 +8,10 @@ import (
 	"path/filepath"
 )
 
-func loginKeychain() string { h, _ := os.UserHomeDir(); return filepath.Join(h, "Library", "Keychains", "login.keychain-db") }
+func loginKeychain() string {
+	h, _ := os.UserHomeDir()
+	return filepath.Join(h, "Library", "Keychains", "login.keychain-db")
+}
 
 // CertTrusted asks the system whether the gateway leaf is already trusted for SSL on localhost: a certificate trusted
 // once asks nothing again.
