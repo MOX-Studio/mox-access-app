@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
-	"strings"
 	"time"
 )
 
@@ -59,6 +58,10 @@ var (
 	sshKeyRe  = regexp.MustCompile(`^-----BEGIN OPENSSH PRIVATE KEY-----\n([A-Za-z0-9+/=]+\n)+-----END OPENSSH PRIVATE KEY-----\n$`)
 	hostKeyRe = regexp.MustCompile(`^(ssh-ed25519|ssh-rsa|ecdsa-sha2-nistp(256|384|521)) [A-Za-z0-9+/]+=*$`)
 	emailRe   = regexp.MustCompile(`^\S+@\S+\.\S+$`)
+	originRe  = regexp.MustCompile(`^https://(localhost|127\.0\.0\.1)(:[0-9]{1,5})?$`)
+	envNameRe = regexp.MustCompile(`^[A-Z][A-Z0-9_]{0,63}$`)
+	// URLs, paths and host lists only: no whitespace, quotes or shell metacharacters.
+	envValueRe = regexp.MustCompile(`^[A-Za-z0-9:/._,~%=-]{1,512}$`)
 )
 
 // Parse decodes and validates a bundle. Anything that would later be written to disk or fed to ssh/security is
@@ -74,8 +77,9 @@ func Parse(raw []byte) (*Bundle, error) {
 	if !emailRe.MatchString(b.Employee.Email) {
 		return nil, errors.New("в файле нет почты сотрудника")
 	}
-	if !strings.HasPrefix(b.Gateway.Origin, "https://") && !strings.HasPrefix(b.Gateway.Origin, "http://") {
-		return nil, errors.New("в файле нет адреса шлюза")
+	// Codex Desktop 0.155 takes an https backend only, and the origin is what every env value is built from.
+	if !originRe.MatchString(b.Gateway.Origin) {
+		return nil, errors.New("адрес шлюза в файле должен быть https://localhost:<порт>")
 	}
 	if b.Gateway.LocalPort <= 0 || b.Gateway.LocalPort > 65535 {
 		return nil, errors.New("в файле нет порта шлюза")
@@ -91,8 +95,9 @@ func Parse(raw []byte) (*Bundle, error) {
 	if b.Config.Fragment == "" {
 		return nil, errors.New("в файле нет фрагмента конфига Codex")
 	}
+	// Names and values are later handed to launchctl and written into a plist a shell executes: only plain characters.
 	for _, pair := range b.Env {
-		if len(pair) != 2 || pair[0] == nil || *pair[0] == "" {
+		if len(pair) != 2 || pair[0] == nil || !envNameRe.MatchString(*pair[0]) || (pair[1] != nil && !envValueRe.MatchString(*pair[1])) {
 			return nil, errors.New("переменные окружения в файле повреждены")
 		}
 	}

@@ -28,7 +28,7 @@ func renderEnvPlist(vars map[string]string) string {
 	sort.Strings(keys)
 	cmds := make([]string, 0, len(keys))
 	for _, k := range keys {
-		cmds = append(cmds, "launchctl setenv "+k+" "+vars[k])
+		cmds = append(cmds, "launchctl setenv "+k+" "+shellQuote(vars[k]))
 	}
 	return strings.Join([]string{
 		`<?xml version="1.0" encoding="UTF-8"?>`,
@@ -42,6 +42,9 @@ func renderEnvPlist(vars map[string]string) string {
 		`  <key>RunAtLoad</key><true/>`, `</dict>`, `</plist>`, ``,
 	}, "\n")
 }
+
+// shellQuote wraps a value in single quotes for /bin/sh; a quote inside becomes '\”.
+func shellQuote(s string) string { return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'" }
 
 func xmlEscape(s string) string {
 	return strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;").Replace(s)

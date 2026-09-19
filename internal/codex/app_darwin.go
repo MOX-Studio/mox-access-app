@@ -3,6 +3,8 @@
 package codex
 
 import (
+	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 	"time"
@@ -33,4 +35,22 @@ func QuitCodex() error {
 	return nil
 }
 
-func LaunchCodex() error { return run("open", "-a", "ChatGPT") }
+// LaunchCodex starts ChatGPT.app with an environment stripped of every variable the login manages: `open` passes the
+// caller's environment to the application, and a stale CODEX_API_BASE_URL sends the engine to a gateway that is not
+// there (the sign-in screen of 2026-09-19). What the shell must see comes from launchd (SetEnv), not from here.
+func LaunchCodex() error {
+	cmd := exec.Command("open", "-a", "ChatGPT")
+	var env []string
+	for _, kv := range os.Environ() {
+		name := strings.SplitN(kv, "=", 2)[0]
+		if strings.HasPrefix(name, "CODEX_") || name == "NO_PROXY" || name == "no_proxy" || name == "NODE_EXTRA_CA_CERTS" {
+			continue
+		}
+		env = append(env, kv)
+	}
+	cmd.Env = env
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("open -a ChatGPT: %v: %s", err, strings.TrimSpace(string(out)))
+	}
+	return nil
+}
