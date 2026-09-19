@@ -1,0 +1,49 @@
+package migrate
+
+import (
+	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
+)
+
+// CloneRepos recreates ~/Claud/projects: repositories with an origin are cloned with gh under the employee's own
+// account and switched to the branch the server was on (the WIP branch when there was uncommitted work);
+// those without one come whole from repos-no-remote/. Existing directories are left alone.
+func CloneRepos(exportDir, projectsDir string, repos []Repo, log func(string)) (int, error) {
+	if err := os.MkdirAll(projectsDir, 0o755); err != nil {
+		return 0, err
+	}
+	done := 0
+	for _, r := range repos {
+		dest := filepath.Join(projectsDir, r.Name)
+		if _, err := os.Stat(dest); err == nil {
+			log("пропуск " + r.Name + ": каталог уже есть")
+			continue
+		}
+		if r.Origin != nil && r.Pushed {
+			log("клонирую " + r.Name)
+			cmd := exec.Command("gh", "repo", "clone", *r.Origin, dest)
+			if out, err := cmd.CombinedOutput(); err != nil {
+				return done, fmt.Errorf("клон %s: %v: %s", r.Name, err, out)
+			}
+			if r.Branch != "" && r.Branch != "HEAD" {
+				if out, err := exec.Command("git", "-C", dest, "checkout", "-q", r.Branch).CombinedOutput(); err != nil {
+					log(fmt.Sprintf("ветка %s в %s не переключилась: %s", r.Branch, r.Name, out))
+				}
+			}
+		} else {
+			src := filepath.Join(exportDir, "repos-no-remote", r.Name)
+			if _, err := os.Stat(src); err != nil {
+				log("пропуск " + r.Name + ": нет ни origin, ни копии в экспорте")
+				continue
+			}
+			log("копирую " + r.Name + " (без origin)")
+			if out, err := exec.Command("cp", "-a", src, dest).CombinedOutput(); err != nil {
+				return done, fmt.Errorf("копия %s: %v: %s", r.Name, err, out)
+			}
+		}
+		done++
+	}
+	return done, nil
+}
