@@ -1,0 +1,62 @@
+{
+ "format": "moxaccess/1",
+ "issuedAt": "2026-09-19T16:03:20.189Z",
+ "employee": {
+  "name": "Lilya T",
+  "email": "lilya@example.com"
+ },
+ "gateway": {
+  "origin": "https://localhost:8000",
+  "localPort": 8000
+ },
+ "auth": {
+  "auth_mode": "chatgpt",
+  "OPENAI_API_KEY": null,
+  "tokens": {
+   "id_token": "id.token.value",
+   "access_token": "access.token.value",
+   "refresh_token": "refresh.token.value",
+   "account_id": "account-1"
+  },
+  "last_refresh": "2026-09-18T00:00:00.000Z"
+ },
+ "config": {
+  "fragment": "# MOX ACCESS\nchatgpt_base_url = \"https://localhost:8000/backend-api\"\nopenai_base_url = \"https://localhost:8000/backend-api/codex\"\nexperimental_realtime_ws_base_url = \"https://localhost:8000/openai/v1/live\"\ncli_auth_credentials_store = \"file\"\n",
+  "features": {
+   "apps": false
+  }
+ },
+ "env": [
+  [
+   "CODEX_API_BASE_URL",
+   "https://localhost:8000/backend-api"
+  ],
+  [
+   "CODEX_REFRESH_TOKEN_URL_OVERRIDE",
+   "https://localhost:8000/oauth/token"
+  ],
+  [
+   "CODEX_REVOKE_TOKEN_URL_OVERRIDE",
+   "https://localhost:8000/oauth/revoke"
+  ],
+  [
+   "NO_PROXY",
+   "localhost,127.0.0.1,::1"
+  ],
+  [
+   "CODEX_CA_CERTIFICATE",
+   null
+  ]
+ ],
+ "tls": {
+  "certificate": "-----BEGIN CERTIFICATE-----\nMIIBrTCCAVKgAwIBAgIJAI44RM1y8gcdMAoGCCqGSM49BAMCMCkxEjAQBgNVBAMM\nCWxvY2FsaG9zdDETMBEGA1UECgwKTU9YIEFDQ0VTUzAeFw0yNjA5MTgxMzAwMjRa\nFw0zNjA5MTUxMzAwMjRaMCkxEjAQBgNVBAMMCWxvY2FsaG9zdDETMBEGA1UECgwK\nTU9YIEFDQ0VTUzBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABJrKz5xpCYGekd3d\nGt8I/hkH75Ld+5XLUTUADKsbCYB/RsPa6pHI08DRXNJyx9m3QRvVF9pKErddeaLZ\n8WyBVRyjYzBhMCwGA1UdEQQlMCOCCWxvY2FsaG9zdIcEfwAAAYcQAAAAAAAAAAAA\nAAAAAAAAATAMBgNVHRMBAf8EAjAAMA4GA1UdDwEB/wQEAwIFoDATBgNVHSUEDDAK\nBggrBgEFBQcDATAKBggqhkjOPQQDAgNJADBGAiEAx8NighVyC4ZOtJNRPBmpOuN6\n5rIDSTV1W0gSjahAP8oCIQCDrd97dT+AoS82VzM+h7b1iRUQLQth41Sh8u5H9+B3\nnQ==\n-----END CERTIFICATE-----\n",
+  "sha1": "43C37FF6EE7E86B4BFB451FE0AB440E74305C585"
+ },
+ "relay": {
+  "user": "moxrelay",
+  "host": "relay.example",
+  "port": 2222,
+  "hostKey": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGJ4dGVzdGtleXRlc3RrZXl0ZXN0a2V5dGVzdGtleXRl",
+  "privateKey": "-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAAMwAAAAtzc2gtZW\n-----END OPENSSH PRIVATE KEY-----\n"
+ }
+}
