@@ -18,14 +18,14 @@ jobs:
         with:
           files: dist/MOX-Access-mac-${{ matrix.arch }}.zip
   windows:
-    # Pure Go: the Windows binaries cross-compile on Linux; the tests here are the OS-independent ones.
+    # Pure Go: the Windows binaries cross-compile on Linux. The test suite runs in the mac job (the platform files exist
+    # for darwin and windows only); here the Windows tree is vetted and built.
     runs-on: ubuntu-latest
     strategy: { matrix: { arch: [amd64, arm64] } }
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with: { go-version-file: go.mod }
-      - run: go test ./...
       - run: GOOS=windows GOARCH=${{ matrix.arch }} go vet ./...
       - run: ARCH=${{ matrix.arch }} build/windows.sh "${GITHUB_REF_NAME}"
       - uses: softprops/action-gh-release@v2
