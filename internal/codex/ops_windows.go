@@ -3,6 +3,7 @@
 package codex
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -41,21 +42,41 @@ func powershell(script string) (string, error) {
 
 func (*Windows) Home() string { return Home() }
 
-// TrustCert adds the gateway certificate to the user's Root store, where Chromium looks. Windows confirms a root with
-// its own dialog; a thumbprint already present asks nothing, and a refused dialog is reported as the missing trust.
+// TrustCert adds the gateway certificate to the user's Root store, where Chromium looks, with certutil: the Cert:
+// provider of a PowerShell started from the application answered «InvalidDestinationPath» on the first Windows
+// machine (2026-09-21) while the same import from a console had worked. Windows confirms a new root with its own
+// dialog; a thumbprint already present asks nothing, and a refused dialog is reported as the missing trust.
 func (*Windows) TrustCert(pemPath string) error {
 	thumb, err := Thumbprint(pemPath)
 	if err != nil {
 		return err
 	}
-	script := "$thumb = " + PSQuote(thumb) + "\n" +
-		"if (Get-ChildItem Cert:\\CurrentUser\\Root | Where-Object Thumbprint -eq $thumb) { exit 0 }\n" +
-		"Import-Certificate -FilePath " + PSQuote(pemPath) + " -CertStoreLocation Cert:\\CurrentUser\\Root | Out-Null\n" +
-		"if (Get-ChildItem Cert:\\CurrentUser\\Root | Where-Object Thumbprint -eq $thumb) { exit 0 } else { exit 3 }\n"
-	if _, err := powershell(script); err != nil {
-		return fmt.Errorf("доверие сертификату шлюза не установлено: подтвердите добавление сертификата «localhost» в диалоге Windows и повторите (%v)", err)
+	if _, err := certutil("-user", "-verifystore", "Root", thumb); err == nil {
+		return nil
+	}
+	if out, err := certutil("-user", "-addstore", "Root", pemPath); err != nil {
+		return fmt.Errorf("доверие сертификату шлюза не установлено: подтвердите добавление сертификата «localhost» в диалоге Windows и повторите (%s)", lastLine(out))
+	}
+	if _, err := certutil("-user", "-verifystore", "Root", thumb); err != nil {
+		return errors.New("доверие сертификату шлюза не установлено: сертификата «localhost» нет в хранилище пользователя после добавления")
 	}
 	return nil
+}
+
+// certutil runs the native certificate tool without a window; the store dialog it may open is a window of its own.
+func certutil(args ...string) (string, error) {
+	cmd := exec.Command("certutil", args...)
+	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return string(out), fmt.Errorf("certutil %s: %v", strings.Join(args[:2], " "), err)
+	}
+	return string(out), nil
+}
+
+func lastLine(out string) string {
+	lines := strings.Split(strings.TrimSpace(out), "\n")
+	return strings.TrimSpace(lines[len(lines)-1])
 }
 
 // SetEnv writes the variables for the user: the registry plus the change broadcast, which is what
