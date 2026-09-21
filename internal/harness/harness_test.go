@@ -22,7 +22,7 @@ func fakeCodex(t *testing.T, dir, root string) string {
 
 func TestSetupOrder(t *testing.T) {
 	dir := t.TempDir()
-	root := filepath.Join(dir, "marketplace")
+	root := filepath.Join(dir, "Имя Фамилия", "marketplace") // a root with a space, as under C:\Users\Имя Фамилия
 	os.MkdirAll(filepath.Join(root, "hooks"), 0o755)
 	os.WriteFile(filepath.Join(root, "catalog.json"), []byte(`{"version":"0.3.0"}`), 0o644)
 	os.WriteFile(filepath.Join(root, "AGENTS.md"), []byte("# Правила\n"), 0o644)

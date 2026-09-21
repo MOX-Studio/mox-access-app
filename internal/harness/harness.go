@@ -61,10 +61,11 @@ func (o Options) codex(args ...string) (string, error) {
 
 func (o Options) marketplaceRoot() string {
 	out, _ := o.codex("plugin", "marketplace", "list")
+	// "NAME  ROOT": the root is the rest of the line — on Windows it may hold spaces (C:\Users\Имя Фамилия\…).
 	for _, line := range strings.Split(out, "\n") {
 		f := strings.Fields(line)
 		if len(f) >= 2 && f[0] == "mox" {
-			return f[1]
+			return strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(line), "mox"))
 		}
 	}
 	return ""
