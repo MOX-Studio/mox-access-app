@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 )
@@ -50,9 +51,15 @@ func InstallAuth(home string, mox []byte) error {
 		if err := os.WriteFile(path+".bak-mox-"+stamp, current, 0o600); err != nil {
 			return fmt.Errorf("бэкап auth.json: %w", err)
 		}
-		if !IsMoxAuth(current) {
-			if _, err := os.Stat(personal); os.IsNotExist(err) {
-				if err := os.WriteFile(personal, current, 0o600); err != nil {
+		if _, err := os.Stat(personal); os.IsNotExist(err) {
+			// The login found there is the employee's own — or, after the shell installer of 2026-09-18, the MOX login it
+			// wrote, with the personal one in the installer's own backup: take the newest backup that is not a MOX login.
+			own := current
+			if IsMoxAuth(current) {
+				own = personalFromBackups(home)
+			}
+			if own != nil {
+				if err := os.WriteFile(personal, own, 0o600); err != nil {
 					return fmt.Errorf("сохранение личного входа: %w", err)
 				}
 			}
@@ -77,6 +84,18 @@ func RestoreAuth(home string) error {
 	}
 	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
 		return err
+	}
+	return nil
+}
+
+// personalFromBackups returns the newest auth.json.bak-mox-* that holds a personal login, or nil.
+func personalFromBackups(home string) []byte {
+	matches, _ := filepath.Glob(filepath.Join(home, "auth.json.bak-mox-*"))
+	sort.Sort(sort.Reverse(sort.StringSlice(matches))) // the stamp sorts chronologically
+	for _, m := range matches {
+		if data, err := os.ReadFile(m); err == nil && len(data) > 0 && !IsMoxAuth(data) {
+			return data
+		}
 	}
 	return nil
 }

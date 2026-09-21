@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -32,6 +33,13 @@ type CodexOps interface {
 	QuitCodex() error
 	LaunchCodex() error
 	RestartHint() string // what the employee must do after a restart when the platform cannot apply it itself (Windows: log out and in)
+}
+
+// LegacyRemover is implemented where an earlier installer may have left its own tunnel and files on the machine
+// (Windows: the PowerShell installer of 2026-09-18 — a scheduled task, ssh.exe on the port, a key in ~/.ssh).
+// Enable removes that before it takes the port, so an employee who had the installer never opens a terminal.
+type LegacyRemover interface {
+	RemoveLegacy() (removed []string, err error)
 }
 
 type Snapshot struct {
@@ -170,6 +178,23 @@ func (a *App) Enable(ctx context.Context) error {
 				return err
 			}
 			return a.ops.TrustCert(a.pemPath())
+		}, nil); err != nil {
+			return rollback(err)
+		}
+	}
+	if lr, ok := a.ops.(LegacyRemover); ok {
+		// After the trust dialog (the one step the employee can dismiss), before anything the old installer also set:
+		// its tunnel holds the port, its task would bring it back at the next logon. Not undone by a rollback — the
+		// login and the environment the installer wrote are restored by the steps below like any personal ones.
+		if err := step("прежний установщик", func() error {
+			removed, err := lr.RemoveLegacy()
+			if err != nil {
+				return err
+			}
+			if len(removed) > 0 {
+				a.log("прежний установщик снят: " + strings.Join(removed, ", "))
+			}
+			return nil
 		}, nil); err != nil {
 			return rollback(err)
 		}

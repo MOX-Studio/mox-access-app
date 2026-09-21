@@ -60,3 +60,38 @@ func TestInstallAndRestoreAuth(t *testing.T) {
 		t.Fatal("auth.json should be gone when there was no personal login")
 	}
 }
+
+// After the shell installer of 2026-09-18 auth.json already holds a MOX login and the personal one sits in the
+// installer's backup: InstallAuth takes the newest backup that is not a MOX login, so Disable brings it back.
+func TestInstallAuthRecoversPersonalLoginFromInstallerBackup(t *testing.T) {
+	home := t.TempDir()
+	os.WriteFile(filepath.Join(home, "auth.json"), []byte(moxAuth), 0o600)
+	os.WriteFile(filepath.Join(home, "auth.json.bak-mox-20260917-100000"), []byte(`{"tokens":{"access_token":"older.personal.x"}}`), 0o600)
+	os.WriteFile(filepath.Join(home, "auth.json.bak-mox-20260918-153000"), []byte(personalAuth), 0o600)
+	if err := InstallAuth(home, []byte(moxAuth)); err != nil {
+		t.Fatal(err)
+	}
+	personal, err := os.ReadFile(filepath.Join(home, "auth.json.personal"))
+	if err != nil || string(personal) != personalAuth {
+		t.Fatalf("personal = %q, %v", personal, err)
+	}
+	if err := RestoreAuth(home); err != nil {
+		t.Fatal(err)
+	}
+	got, _ := os.ReadFile(filepath.Join(home, "auth.json"))
+	if string(got) != personalAuth {
+		t.Fatal("personal login not restored")
+	}
+}
+
+// A MOX login with no personal backup anywhere leaves no .personal: Restore then shows the sign-in screen.
+func TestInstallAuthWithoutAnyPersonalLogin(t *testing.T) {
+	home := t.TempDir()
+	os.WriteFile(filepath.Join(home, "auth.json"), []byte(moxAuth), 0o600)
+	if err := InstallAuth(home, []byte(moxAuth)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(home, "auth.json.personal")); !os.IsNotExist(err) {
+		t.Fatal("a MOX login must not become the personal one")
+	}
+}

@@ -244,3 +244,74 @@ func TestImportRejectsGarbage(t *testing.T) {
 }
 
 var _ = bundle.Format
+
+// legacyOps is a platform whose earlier installer may still be on the machine (Windows).
+type legacyOps struct {
+	*fakeOps
+	found []string
+}
+
+func (l *legacyOps) RemoveLegacy() ([]string, error) {
+	if err := l.note("legacy"); err != nil {
+		return nil, err
+	}
+	return l.found, nil
+}
+
+// On a platform with an earlier installer, Enable removes it after the trust dialog and before the login, the
+// environment and the tunnel — the old relay holds the port the tunnel needs.
+func TestEnableRemovesLegacyInstallerBeforeTakingThePort(t *testing.T) {
+	dir := t.TempDir()
+	gw, certPEM := gateway(t)
+	defer gw.Close()
+	privPEM, userPub := tunneltest.NewUserKey(t)
+	relay := tunneltest.New(t, userPub, gw.Listener.Addr().String())
+	defer relay.Stop()
+	ops := &legacyOps{fakeOps: &fakeOps{home: filepath.Join(dir, ".codex")}, found: []string{"задача планировщика", "туннель"}}
+	os.MkdirAll(ops.home, 0o700)
+	var logs []string
+	a, err := New(filepath.Join(dir, "app"), ops, func(s string) { logs = append(logs, s) })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := a.Import(testBundle(t, dir, relay.Port(), relay.HostKeyLine(), privPEM, certPEM, freePort(t))); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.Enable(context.Background()); err != nil {
+		t.Fatalf("enable: %v (steps %v)", err, ops.steps)
+	}
+	if got := strings.Join(ops.steps, " "); got != "cert legacy env+ quit launch" {
+		t.Fatalf("enable order: %s", got)
+	}
+	if !strings.Contains(strings.Join(logs, "\n"), "прежний установщик снят: задача планировщика, туннель") {
+		t.Fatalf("log:\n%s", strings.Join(logs, "\n"))
+	}
+}
+
+// A failing legacy removal ends Enable with the step named and nothing else touched.
+func TestEnableStopsWhenLegacyRemovalFails(t *testing.T) {
+	dir := t.TempDir()
+	gw, certPEM := gateway(t)
+	defer gw.Close()
+	privPEM, userPub := tunneltest.NewUserKey(t)
+	relay := tunneltest.New(t, userPub, gw.Listener.Addr().String())
+	defer relay.Stop()
+	ops := &legacyOps{fakeOps: &fakeOps{home: filepath.Join(dir, ".codex"), failAt: "legacy"}}
+	os.MkdirAll(ops.home, 0o700)
+	os.WriteFile(filepath.Join(ops.home, "auth.json"), []byte(`{"tokens":{"access_token":"personal.token.x"}}`), 0o600)
+	a, _ := New(filepath.Join(dir, "app"), ops, func(string) {})
+	if err := a.Import(testBundle(t, dir, relay.Port(), relay.HostKeyLine(), privPEM, certPEM, freePort(t))); err != nil {
+		t.Fatal(err)
+	}
+	err := a.Enable(context.Background())
+	if err == nil || !strings.Contains(err.Error(), "шаг «прежний установщик»") {
+		t.Fatalf("err = %v", err)
+	}
+	if got := strings.Join(ops.steps, " "); got != "cert legacy" {
+		t.Fatalf("steps: %s", got)
+	}
+	auth, _ := os.ReadFile(filepath.Join(ops.home, "auth.json"))
+	if string(auth) != `{"tokens":{"access_token":"personal.token.x"}}` || a.Status().Mode != state.ModePersonal {
+		t.Fatal("personal Codex touched")
+	}
+}

@@ -12,7 +12,7 @@ import (
 	"github.com/MOX-Studio/mox-access-app/internal/codex"
 )
 
-func platformOps() app.CodexOps { return codex.Windows{} }
+func platformOps() app.CodexOps { return &codex.Windows{} }
 
 // appPaths: %LOCALAPPDATA%\MOX Access holds the bundle, the state and the log — the folder the installer of 2026-09-18 used.
 func appPaths() (dir, logPath string) {
