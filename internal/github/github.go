@@ -187,8 +187,10 @@ func (c *Client) EnsureLogin(ctx context.Context, gh string) error {
 	return c.Login(ctx, gh)
 }
 
+// gh names the code two ways: "! First copy your one-time code: XXXX-XXXX" and, with --clipboard (2.101),
+// "! One-time code (XXXX-XXXX) copied to clipboard". The first live login (Lilya, 2026-09-21) met the second one.
 var (
-	codeRe = regexp.MustCompile(`one-time code: ([A-Z0-9]{4}-[A-Z0-9]{4})`)
+	codeRe = regexp.MustCompile(`(?i)one-time code[: (]+([A-Z0-9]{4}-[A-Z0-9]{4})`)
 	urlRe  = regexp.MustCompile(`(https://\S+)`)
 )
 

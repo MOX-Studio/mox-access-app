@@ -23,7 +23,7 @@ func fakeGh(t *testing.T, dir string) string {
 	script := `#!/bin/sh
 case "$1 $2" in
   "auth status") [ -e "` + dir + `/logged-in" ] ;;
-  "auth login") echo "! First copy your one-time code: ABCD-1234" >&2; echo "Open this URL to continue in your web browser: https://github.com/login/device" >&2; sleep 0.3; touch "` + dir + `/logged-in" ;;
+  "auth login") echo "" >&2; echo "! One-time code (ABCD-1234) copied to clipboard" >&2; echo "Open this URL to continue in your web browser: https://github.com/login/device" >&2; sleep 0.3; touch "` + dir + `/logged-in" ;;
   "auth setup-git") touch "` + dir + `/setup-git" ;;
   "--version ") echo "gh version 9.9.9 (test)" ;;
   *) exit 2 ;;
@@ -136,5 +136,22 @@ func TestEnsureGitAsksForTheToolsOnce(t *testing.T) {
 	ready = true
 	if err := c.EnsureGit(); err != nil || requested != 1 {
 		t.Fatalf("tools present: err=%v requested=%d", err, requested)
+	}
+}
+
+// Both spellings gh uses for the code are recognised; a line without a code is not.
+func TestCodeLineFormats(t *testing.T) {
+	for line, want := range map[string]string{
+		"! First copy your one-time code: ABCD-1234":                                     "ABCD-1234",
+		"! One-time code (7XYZ-0K9Q) copied to clipboard":                                "7XYZ-0K9Q",
+		"Open this URL to continue in your web browser: https://github.com/login/device": "",
+	} {
+		got := ""
+		if m := codeRe.FindStringSubmatch(line); m != nil {
+			got = m[1]
+		}
+		if got != want {
+			t.Errorf("%q → %q, want %q", line, got, want)
+		}
 	}
 }

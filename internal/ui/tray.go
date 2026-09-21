@@ -106,6 +106,7 @@ func (t *Tray) loop() {
 				go t.run("Включение корпоративного Codex", func() error { return t.Web.App.Enable(context.Background()) })
 			}
 		case <-t.items.github.ClickedCh:
+			t.Notify("MOX Access", "Вход в GitHub: проверяю git и gh, затем откроется браузер и окно с кодом")
 			go t.run("Вход в GitHub", func() error {
 				user, err := t.Web.App.GitHubLogin(context.Background())
 				if err == nil && user != "" {
