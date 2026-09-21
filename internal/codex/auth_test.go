@@ -95,3 +95,13 @@ func TestInstallAuthWithoutAnyPersonalLogin(t *testing.T) {
 		t.Fatal("a MOX login must not become the personal one")
 	}
 }
+
+// -EncodedCommand is base64 of UTF-16LE: what `powershell -EncodedCommand` decodes ("é" and a newline included).
+func TestEncodeCommand(t *testing.T) {
+	if got, want := EncodeCommand("exit 0\n"), "ZQB4AGkAdAAgADAACgA="; got != want {
+		t.Fatalf("got %s want %s", got, want)
+	}
+	if got, want := EncodeCommand("é"), "6QA="; got != want {
+		t.Fatalf("got %s want %s", got, want)
+	}
+}

@@ -2,12 +2,14 @@ package codex
 
 import (
 	"crypto/sha1"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/pem"
 	"errors"
 	"fmt"
 	"os"
 	"strings"
+	"unicode/utf16"
 )
 
 // PSQuote wraps a value in PowerShell single quotes; a quote inside becomes ”. Values from the bundle (URLs, paths)
@@ -41,4 +43,14 @@ func EnvScript(vars map[string]string, keys []string, remove bool) string {
 		}
 	}
 	return b.String()
+}
+
+// EncodeCommand is the -EncodedCommand form of a script: UTF-16LE, base64.
+func EncodeCommand(script string) string {
+	units := utf16.Encode([]rune(script))
+	buf := make([]byte, 0, len(units)*2)
+	for _, u := range units {
+		buf = append(buf, byte(u), byte(u>>8))
+	}
+	return base64.StdEncoding.EncodeToString(buf)
 }
