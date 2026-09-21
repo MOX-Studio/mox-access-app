@@ -13,4 +13,5 @@ jobs:
       - run: go test ./...
       - run: ARCH=${{ matrix.arch }} build/mac.sh "${GITHUB_REF_NAME}"
       - uses: softprops/action-gh-release@v2
-        with: { files: dist/MOX-Access-mac-${{ matrix.arch }}.zip }
+        with:
+          files: dist/MOX-Access-mac-${{ matrix.arch }}.zip
