@@ -27,7 +27,7 @@ func TestSetupOrder(t *testing.T) {
 	os.WriteFile(filepath.Join(root, "catalog.json"), []byte(`{"version":"0.3.0"}`), 0o644)
 	os.WriteFile(filepath.Join(root, "AGENTS.md"), []byte("# Правила\n"), 0o644)
 	home := filepath.Join(dir, "home")
-	repo := filepath.Join(home, "Claud", "projects", "demo")
+	repo := filepath.Join(home, "MOX", "projects", "demo")
 	os.MkdirAll(repo, 0o755)
 	if err := exec.Command("git", "init", "-q", repo).Run(); err != nil {
 		t.Fatal(err)

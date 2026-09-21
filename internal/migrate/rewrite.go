@@ -21,7 +21,7 @@ type Stats struct {
 }
 
 // RewritePaths replaces the server home with the local one, longest prefix first: ~/.codex of the server becomes
-// codexDir (the directory being rewritten), ~/Claud/projects stays under the same relative path, the rest of the
+// codexDir (the directory being rewritten), the server's ~/Claud/projects becomes ~/MOX/projects here, the rest of the
 // home maps to newHome. Text files are rewritten byte-wise (encrypted_content is base64 and never matches);
 // state_5.sqlite through UPDATE; thread_history_1.sqlite holds byte offsets into the rollouts and is dropped —
 // the engine rebuilds it lazily.
@@ -31,7 +31,7 @@ func RewritePaths(codexDir, oldHome, newHome string) (Stats, error) {
 	if err != nil {
 		return st, err
 	}
-	pairs := [][2]string{{oldHome + "/.codex", abs}, {oldHome + "/Claud/projects", filepath.Join(newHome, "Claud", "projects")}, {oldHome, newHome}}
+	pairs := [][2]string{{oldHome + "/.codex", abs}, {oldHome + "/Claud/projects", filepath.Join(newHome, "MOX", "projects")}, {oldHome, newHome}}
 	var targets []string
 	for _, glob := range []string{"sessions/*/*/*/*.jsonl", "archived_sessions/*/*/*/*.jsonl", "memories/*.md", "memories/*/*.md", "config.toml", "session_index.jsonl"} {
 		m, _ := filepath.Glob(filepath.Join(abs, glob))

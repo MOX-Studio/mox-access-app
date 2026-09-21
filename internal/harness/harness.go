@@ -124,9 +124,9 @@ func Setup(o Options) (Report, error) {
 			return rep, fmt.Errorf("шаг «сотрудник»: %w", err)
 		}
 	}
-	o.Log("→ хук классов в репо ~/Claud/projects")
+	o.Log("→ хук классов в репо ~/MOX/projects")
 	hooks := filepath.Join(rep.Root, "hooks")
-	dirs, _ := filepath.Glob(filepath.Join(o.Home, "Claud", "projects", "*", ".git"))
+	dirs, _ := filepath.Glob(filepath.Join(o.Home, "MOX", "projects", "*", ".git"))
 	for _, g := range dirs {
 		repo := filepath.Dir(g)
 		if err := exec.Command("git", "-C", repo, "config", "core.hooksPath", hooks).Run(); err == nil {

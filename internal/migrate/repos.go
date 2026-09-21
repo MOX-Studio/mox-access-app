@@ -15,7 +15,7 @@ var (
 	repoOriginRe = regexp.MustCompile(`^https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(\.git)?$`)
 )
 
-// CloneRepos recreates ~/Claud/projects: repositories with an origin are cloned with gh under the employee's own
+// CloneRepos recreates ~/MOX/projects: repositories with an origin are cloned with gh under the employee's own
 // account and switched to the branch the server was on (the WIP branch when there was uncommitted work);
 // those without one come whole from repos-no-remote/. Existing directories are left alone.
 func CloneRepos(exportDir, projectsDir string, repos []Repo, log func(string)) (int, error) {

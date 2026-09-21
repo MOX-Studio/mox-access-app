@@ -78,7 +78,7 @@ func (a *App) Migrate(ctx context.Context) (MigrateSummary, error) {
 		return sum, fmt.Errorf("repos.json: %w", err)
 	}
 	a.log("→ клонирую проекты")
-	n, err := migrate.CloneRepos(extracted, filepath.Join(userHome, "Claud", "projects"), repos, a.log)
+	n, err := migrate.CloneRepos(extracted, filepath.Join(userHome, "MOX", "projects"), repos, a.log)
 	sum.Repos = n
 	if err != nil {
 		return sum, err

@@ -74,7 +74,7 @@ func TestRewritePaths(t *testing.T) {
 	defer db.Close()
 	var rp, cwd string
 	db.QueryRow(`SELECT rollout_path, cwd FROM threads`).Scan(&rp, &cwd)
-	if !strings.HasPrefix(rp, codexDir) || cwd != filepath.Join(newHome, "Claud", "projects", "eco") {
+	if !strings.HasPrefix(rp, codexDir) || cwd != filepath.Join(newHome, "MOX", "projects", "eco") {
 		t.Fatalf("threads row: %s | %s", rp, cwd)
 	}
 	if _, err := os.Stat(rp); err != nil {
