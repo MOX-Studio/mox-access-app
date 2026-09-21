@@ -12,11 +12,22 @@ import (
 	"github.com/MOX-Studio/mox-access-app/internal/state"
 )
 
-//go:embed icon_template.png
-var iconTemplate []byte
-
-//go:embed icon.png
-var iconRegular []byte
+// The mark in the menu bar tells the state without words: the ring alone — personal Codex; a check inside — corporate
+// Codex on and the tunnel up; an exclamation — corporate on but the tunnel down. Template PNGs for macOS, colored for the rest.
+var (
+	//go:embed icon_template.png
+	iconOff []byte
+	//go:embed icon.png
+	iconOffColor []byte
+	//go:embed icon_template-on.png
+	iconOn []byte
+	//go:embed icon-on.png
+	iconOnColor []byte
+	//go:embed icon_template-attention.png
+	iconAttention []byte
+	//go:embed icon-attention.png
+	iconAttentionColor []byte
+)
 
 // Tray runs the menu until Quit; it must be called from the main goroutine (systray.Run).
 type Tray struct {
@@ -25,12 +36,13 @@ type Tray struct {
 	Notify func(title, text string)
 	OnQuit func()
 	items  struct{ toggle, tunnel, migrate, harness, diag, imp, quit *systray.MenuItem }
+	icon   *byte // first byte of the icon currently shown, so refresh sets the image only when the state changes
 }
 
 func (t *Tray) Run() { systray.Run(t.ready, t.exit) }
 
 func (t *Tray) ready() {
-	systray.SetTemplateIcon(iconTemplate, iconRegular)
+	systray.SetTemplateIcon(iconOff, iconOffColor)
 	systray.SetTooltip("MOX Access")
 	t.items.toggle = systray.AddMenuItem("Корпоративный Codex: …", "Включить или выключить вход через MOX")
 	t.items.tunnel = systray.AddMenuItem("Туннель: —", "")
@@ -54,19 +66,23 @@ func (t *Tray) ready() {
 func (t *Tray) refresh() {
 	s := t.Web.App.Status()
 	on := s.Mode == state.ModeCorporate
+	icon, iconColor := iconOff, iconOffColor
 	if on {
 		t.items.toggle.SetTitle("Корпоративный Codex: ВКЛ — выключить")
 		if s.Tunnel.Connected {
 			t.items.tunnel.SetTitle("Туннель: подключён · " + s.KeyText)
-			systray.SetTitle("MOX ●")
+			icon, iconColor = iconOn, iconOnColor
 		} else {
 			t.items.tunnel.SetTitle("Туннель: нет соединения")
-			systray.SetTitle("MOX !")
+			icon, iconColor = iconAttention, iconAttentionColor
 		}
 	} else {
 		t.items.toggle.SetTitle("Корпоративный Codex: ВЫКЛ — включить")
 		t.items.tunnel.SetTitle("Туннель: —")
-		systray.SetTitle("")
+	}
+	if t.icon != &icon[0] {
+		systray.SetTemplateIcon(icon, iconColor)
+		t.icon = &icon[0]
 	}
 	if s.Employee == "" {
 		t.items.toggle.Disable()
