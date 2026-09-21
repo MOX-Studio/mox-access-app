@@ -143,8 +143,9 @@ func (c *Client) Install(ctx context.Context) (string, error) {
 	}
 	defer zr.Close()
 	var bin *zip.File
+	// macOS archives carry gh_<ver>_macOS_<arch>/bin/gh, Windows ones bin/gh.exe at the root.
 	for _, f := range zr.File {
-		if strings.HasSuffix(f.Name, "/bin/"+ghName) && !f.FileInfo().IsDir() {
+		if strings.HasSuffix("/"+f.Name, "/bin/"+ghName) && !f.FileInfo().IsDir() {
 			bin = f
 		}
 	}

@@ -46,12 +46,17 @@ func TestFindTakesTheInstalledGh(t *testing.T) {
 	}
 }
 
-// release serves a latest-release document and the zip it points to, shaped like cli/cli on GitHub.
-func release(t *testing.T) *httptest.Server {
+// release serves a latest-release document and the zip it points to, shaped like cli/cli on GitHub. The macOS
+// archive nests bin/gh under a version directory; the Windows one (rootLayout) has bin/gh.exe at the root.
+func release(t *testing.T, layouts ...string) *httptest.Server {
 	t.Helper()
+	entry := "gh_9.9.9_macOS_" + runtime.GOARCH + "/bin/gh"
+	if len(layouts) > 0 {
+		entry = layouts[0]
+	}
 	var zipBuf bytes.Buffer
 	zw := zip.NewWriter(&zipBuf)
-	f, _ := zw.Create("gh_9.9.9_macOS_" + runtime.GOARCH + "/bin/gh")
+	f, _ := zw.Create(entry)
 	f.Write([]byte("#!/bin/sh\ncase \"$1\" in --version) echo \"gh version 9.9.9 (test)\";; esac\n"))
 	zw.Close()
 	var srv *httptest.Server
@@ -153,5 +158,20 @@ func TestCodeLineFormats(t *testing.T) {
 		if got != want {
 			t.Errorf("%q → %q, want %q", line, got, want)
 		}
+	}
+}
+
+// The Windows archive keeps bin/gh.exe at its root (no version directory); the same code finds it.
+func TestInstallFindsTheBinaryAtTheArchiveRoot(t *testing.T) {
+	dir := t.TempDir()
+	srv := release(t, "bin/"+ghName)
+	defer srv.Close()
+	c := &Client{Dir: dir, ReleaseAPI: srv.URL + "/releases/latest", HTTP: srv.Client(), Candidates: []string{}}
+	gh, err := c.Install(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gh != filepath.Join(dir, "bin", ghName) {
+		t.Fatalf("installed at %s", gh)
 	}
 }
