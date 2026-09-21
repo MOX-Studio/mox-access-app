@@ -8,6 +8,7 @@ ARCH="${ARCH:-$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')}"
 app="dist/MOX Access.app"; rm -rf "$app"; mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
 CGO_ENABLED=1 GOOS=darwin GOARCH="$ARCH" go build -trimpath -ldflags "-s -w -X main.Version=$V" -o "$app/Contents/MacOS/moxaccess" ./cmd/moxaccess
 sed "s/__VERSION__/$V/g" build/Info.plist > "$app/Contents/Info.plist"
+cp build/AppIcon.icns "$app/Contents/Resources/AppIcon.icns"   # regenerate with build/icons.sh
 printf 'APPL????' > "$app/Contents/PkgInfo"
 # Ad-hoc signature: without it macOS Gatekeeper refuses to even offer "Open" on some versions. Notarization is later.
 codesign --force --deep --sign - "$app" 2>/dev/null || true
