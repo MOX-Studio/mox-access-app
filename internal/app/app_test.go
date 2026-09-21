@@ -24,6 +24,7 @@ import (
 	"github.com/MOX-Studio/mox-access-app/internal/bundle"
 	"github.com/MOX-Studio/mox-access-app/internal/state"
 	"github.com/MOX-Studio/mox-access-app/internal/tunnel/tunneltest"
+	"golang.org/x/crypto/ssh"
 )
 
 // fakeOps records the order of OS-level steps instead of touching the machine.
@@ -181,6 +182,50 @@ func TestEnableStopsAtFirstFailedStep(t *testing.T) {
 	}
 	if a.Status().Mode != state.ModePersonal {
 		t.Fatal("mode must stay personal")
+	}
+}
+
+// The failure of 2026-09-21 on the first Mac: the relay refuses the handshake after the login, config and environment
+// are already corporate. Enable must put every one of them back, or the employee is left with a Codex that cannot sign in.
+func TestEnableRollsBackWhenTunnelFails(t *testing.T) {
+	dir := t.TempDir()
+	gw, certPEM := gateway(t)
+	defer gw.Close()
+	privPEM, userPub := tunneltest.NewUserKey(t)
+	relay := tunneltest.New(t, userPub, gw.Listener.Addr().String())
+	defer relay.Stop()
+	_, strangerPub := tunneltest.NewUserKey(t)
+	wrongHostKey := strings.TrimSpace(string(ssh.MarshalAuthorizedKey(strangerPub)))
+	ops := &fakeOps{home: filepath.Join(dir, ".codex")}
+	os.MkdirAll(ops.home, 0o700)
+	os.WriteFile(filepath.Join(ops.home, "auth.json"), []byte(`{"tokens":{"access_token":"personal.token.x"}}`), 0o600)
+	os.WriteFile(filepath.Join(ops.home, "config.toml"), []byte("model = \"gpt-5\"\n"), 0o600)
+	var logs []string
+	a, _ := New(filepath.Join(dir, "app"), ops, func(s string) { logs = append(logs, s) })
+	a.Import(testBundle(t, dir, relay.Port(), wrongHostKey, privPEM, certPEM, freePort(t)))
+	err := a.Enable(context.Background())
+	if err == nil || !strings.Contains(err.Error(), "туннель") || !strings.Contains(err.Error(), "отменены") {
+		t.Fatalf("expected tunnel step error with rollback, got %v", err)
+	}
+	if got := strings.Join(ops.steps, " "); got != "cert env+ env-" {
+		t.Fatalf("steps: %s", got)
+	}
+	auth, _ := os.ReadFile(filepath.Join(ops.home, "auth.json"))
+	if string(auth) != `{"tokens":{"access_token":"personal.token.x"}}` {
+		t.Fatal("personal login not restored")
+	}
+	if _, err := os.Stat(filepath.Join(ops.home, "auth.json.personal")); !os.IsNotExist(err) {
+		t.Fatal("auth.json.personal must be consumed by the rollback")
+	}
+	cfg, _ := os.ReadFile(filepath.Join(ops.home, "config.toml"))
+	if string(cfg) != "model = \"gpt-5\"\n" {
+		t.Fatalf("config.toml not restored:\n%s", cfg)
+	}
+	if st := a.Status(); st.Mode != state.ModePersonal || st.Tunnel.Connected {
+		t.Fatalf("status after failed enable: %+v", st)
+	}
+	if !strings.Contains(strings.Join(logs, "\n"), "откат") {
+		t.Fatalf("rollback must be logged: %v", logs)
 	}
 }
 

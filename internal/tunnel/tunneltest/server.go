@@ -3,7 +3,9 @@
 package tunneltest
 
 import (
+	"crypto/ecdsa"
 	"crypto/ed25519"
+	"crypto/elliptic"
 	"crypto/rand"
 	"encoding/pem"
 	"io"
@@ -19,7 +21,8 @@ import (
 type Server struct {
 	t        *testing.T
 	ln       net.Listener
-	hostKey  ssh.Signer
+	hostKey  ssh.Signer // the ed25519 key the bundle pins
+	extraKey ssh.Signer // an ecdsa key too: a real sshd offers several, and a client that does not name its algorithm gets this one first
 	userKey  ssh.PublicKey
 	target   atomic.Value // string
 	Accepted atomic.Int32
@@ -44,7 +47,9 @@ func New(t *testing.T, userKey ssh.PublicKey, target string) *Server {
 	t.Helper()
 	_, hostPriv, _ := ed25519.GenerateKey(rand.Reader)
 	hostSigner, _ := ssh.NewSignerFromKey(hostPriv)
-	s := &Server{t: t, hostKey: hostSigner, userKey: userKey}
+	ecdsaPriv, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	extraSigner, _ := ssh.NewSignerFromKey(ecdsaPriv)
+	s := &Server{t: t, hostKey: hostSigner, extraKey: extraSigner, userKey: userKey}
 	s.target.Store(target)
 	s.Start()
 	return s
@@ -60,6 +65,7 @@ func (s *Server) Start() {
 		return nil, io.ErrUnexpectedEOF
 	}}
 	cfg.AddHostKey(s.hostKey)
+	cfg.AddHostKey(s.extraKey)
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		s.t.Fatal(err)

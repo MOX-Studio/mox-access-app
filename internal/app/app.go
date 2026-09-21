@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"sync"
 	"time"
@@ -123,7 +124,8 @@ func (a *App) release() { a.mu.Lock(); a.busy = false; a.mu.Unlock() }
 
 // Enable turns corporate Codex on. The order matters: trust first (a password dialog the employee dismisses ends the
 // sequence before the login is touched), then the login, the config, the environment, the tunnel, the restart, and
-// finally a real request through the tunnel proves the key is alive.
+// finally a real request through the tunnel proves the key is alive. A step that fails undoes the steps before it:
+// the employee is left with the personal Codex they had, never with a login that points at a gateway nothing serves.
 func (a *App) Enable(ctx context.Context) error {
 	if err := a.take(); err != nil {
 		return err
@@ -131,14 +133,31 @@ func (a *App) Enable(ctx context.Context) error {
 	defer a.release()
 	b := a.Bundle()
 	home := a.ops.Home()
-	step := func(name string, fn func() error) error {
+	var undo []func() error
+	step := func(name string, fn func() error, revert func() error) error {
 		a.log("→ " + name)
 		if err := fn(); err != nil {
 			return fmt.Errorf("шаг «%s»: %w", name, err)
 		}
+		if revert != nil {
+			undo = append(undo, revert)
+		}
 		return nil
 	}
+	rollback := func(cause error) error {
+		if len(undo) == 0 {
+			return cause
+		}
+		a.log("↩ откат: возвращаю личный Codex")
+		for i := len(undo) - 1; i >= 0; i-- {
+			if err := undo[i](); err != nil {
+				a.log("откат: " + err.Error())
+			}
+		}
+		return fmt.Errorf("%w — изменения отменены, личный Codex не тронут", cause)
+	}
 	if b.TLS != nil {
+		// Trust stays after a rollback: a trusted certificate asks no password next time and harms nothing.
 		if err := step("сертификат шлюза", func() error {
 			if err := os.MkdirAll(home, 0o700); err != nil {
 				return err
@@ -147,31 +166,33 @@ func (a *App) Enable(ctx context.Context) error {
 				return err
 			}
 			return a.ops.TrustCert(a.pemPath())
-		}); err != nil {
-			return err
+		}, nil); err != nil {
+			return rollback(err)
 		}
 	}
-	if err := step("вход MOX (auth.json)", func() error { return codex.InstallAuth(home, b.Auth) }); err != nil {
-		return err
+	if err := step("вход MOX (auth.json)", func() error { return codex.InstallAuth(home, b.Auth) }, func() error { return codex.RestoreAuth(home) }); err != nil {
+		return rollback(err)
 	}
-	if err := step("config.toml", func() error { return a.writeConfig(home, b.Config.Fragment, true) }); err != nil {
-		return err
+	if err := step("config.toml", func() error { return a.writeConfig(home, b.Config.Fragment, true) }, func() error { return a.writeConfig(home, b.Config.Fragment, false) }); err != nil {
+		return rollback(err)
 	}
-	if err := step("окружение Codex", func() error { return a.ops.SetEnv(b.EnvVars(a.pemPath())) }); err != nil {
-		return err
+	envVars := b.EnvVars(a.pemPath())
+	if err := step("окружение Codex", func() error { return a.ops.SetEnv(envVars) }, func() error { return a.ops.UnsetEnv(sortedKeys(envVars)) }); err != nil {
+		return rollback(err)
 	}
 	if b.Relay != nil {
-		if err := step("туннель к шлюзу", func() error { return a.startTunnel(ctx, b) }); err != nil {
-			return err
+		if err := step("туннель к шлюзу", func() error { return a.startTunnel(ctx, b) }, func() error { a.stopTunnel(); return nil }); err != nil {
+			return rollback(err)
 		}
 	}
 	if err := step("перезапуск Codex", func() error {
 		if err := a.ops.QuitCodex(); err != nil {
 			return err
 		}
+		undo = append(undo, a.ops.LaunchCodex) // Codex is closed now: whatever happens next, it comes back
 		return a.ops.LaunchCodex()
-	}); err != nil {
-		return err
+	}, nil); err != nil {
+		return rollback(err)
 	}
 	a.mu.Lock()
 	a.st.Mode = state.ModeCorporate
@@ -179,7 +200,7 @@ func (a *App) Enable(ctx context.Context) error {
 	if err := state.Save(a.Dir, a.st); err != nil {
 		return err
 	}
-	if err := step("проверка ключа", func() error { return a.check(ctx) }); err != nil {
+	if err := step("проверка ключа", func() error { return a.check(ctx) }, nil); err != nil {
 		a.log(err.Error())
 	}
 	return nil
@@ -196,11 +217,7 @@ func (a *App) Disable(ctx context.Context) error {
 	a.log("→ туннель")
 	a.stopTunnel()
 	a.log("→ окружение Codex")
-	keys := []string{}
-	for k := range b.EnvVars(a.pemPath()) {
-		keys = append(keys, k)
-	}
-	if err := a.ops.UnsetEnv(keys); err != nil {
+	if err := a.ops.UnsetEnv(sortedKeys(b.EnvVars(a.pemPath()))); err != nil {
 		return fmt.Errorf("шаг «окружение Codex»: %w", err)
 	}
 	a.log("→ config.toml")
@@ -223,6 +240,15 @@ func (a *App) Disable(ctx context.Context) error {
 	a.st.LastCheckText = ""
 	a.mu.Unlock()
 	return state.Save(a.Dir, a.st)
+}
+
+func sortedKeys(m map[string]string) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
 }
 
 func (a *App) writeConfig(home, fragment string, install bool) error {

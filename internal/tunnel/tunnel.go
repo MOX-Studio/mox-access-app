@@ -63,7 +63,17 @@ func (t *Tunnel) clientConfig() (*ssh.ClientConfig, error) {
 	if err != nil {
 		return nil, fmt.Errorf("host-ключ сервера не читается: %w", err)
 	}
-	return &ssh.ClientConfig{User: t.cfg.User, Auth: []ssh.AuthMethod{ssh.PublicKeys(signer)}, HostKeyCallback: ssh.FixedHostKey(hostKey), Timeout: 15 * time.Second}, nil
+	// A pinned key needs its algorithm named: sshd holds several host keys and offers the first one the client lists,
+	// and the library's default list puts ecdsa before ed25519 — FixedHostKey would then reject the server's own key.
+	return &ssh.ClientConfig{User: t.cfg.User, Auth: []ssh.AuthMethod{ssh.PublicKeys(signer)}, HostKeyCallback: ssh.FixedHostKey(hostKey), HostKeyAlgorithms: hostKeyAlgorithms(hostKey), Timeout: 15 * time.Second}, nil
+}
+
+// hostKeyAlgorithms is the algorithm list for one pinned key; an RSA key signs under the sha2 names too.
+func hostKeyAlgorithms(key ssh.PublicKey) []string {
+	if key.Type() == ssh.KeyAlgoRSA {
+		return []string{ssh.KeyAlgoRSASHA512, ssh.KeyAlgoRSASHA256, ssh.KeyAlgoRSA}
+	}
+	return []string{key.Type()}
 }
 
 // addr reads the relay address under the lock; dial itself never takes the lock, so Start may call it while holding it.
