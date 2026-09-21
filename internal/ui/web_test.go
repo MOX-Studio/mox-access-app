@@ -18,6 +18,7 @@ func (noOps) SetEnv(map[string]string) error { return nil }
 func (noOps) UnsetEnv([]string) error        { return nil }
 func (noOps) QuitCodex() error               { return nil }
 func (noOps) LaunchCodex() error             { return nil }
+func (noOps) RestartHint() string            { return "" }
 
 func TestStatusAndPage(t *testing.T) {
 	dir := t.TempDir()

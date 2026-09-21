@@ -20,6 +20,8 @@ import (
 	"runtime"
 	"strings"
 	"time"
+
+	"github.com/MOX-Studio/mox-access-app/internal/hide"
 )
 
 const defaultReleaseAPI = "https://api.github.com/repos/cli/cli/releases/latest"
@@ -41,19 +43,19 @@ func (c *Client) log(s string) {
 	}
 }
 
-func (c *Client) private() string { return filepath.Join(c.Dir, "bin", "gh") }
+func (c *Client) private() string { return filepath.Join(c.Dir, "bin", ghName) }
 
 // Find returns the gh to use: the private copy, then whatever the machine already has. Empty when there is none.
 func (c *Client) Find() string {
 	candidates := c.Candidates
 	if candidates == nil {
-		if p, err := exec.LookPath("gh"); err == nil {
+		if p, err := exec.LookPath(ghName); err == nil {
 			candidates = append(candidates, p)
 		}
-		candidates = append(candidates, "/opt/homebrew/bin/gh", "/usr/local/bin/gh")
+		candidates = append(candidates, systemGh...)
 	}
 	for _, p := range append([]string{c.private()}, candidates...) {
-		if info, err := os.Stat(p); err == nil && !info.IsDir() && info.Mode().Perm()&0o111 != 0 {
+		if info, err := os.Stat(p); err == nil && !info.IsDir() && (runtime.GOOS == "windows" || info.Mode().Perm()&0o111 != 0) {
 			return p
 		}
 	}
@@ -97,7 +99,7 @@ func (c *Client) Install(ctx context.Context) (string, error) {
 	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&rel); err != nil {
 		return "", fmt.Errorf("список версий GitHub CLI: %w", err)
 	}
-	want := "_macOS_" + runtime.GOARCH + ".zip"
+	want := assetSuffix + runtime.GOARCH + ".zip"
 	url := ""
 	for _, a := range rel.Assets {
 		if strings.HasSuffix(a.Name, want) {
@@ -132,7 +134,7 @@ func (c *Client) Install(ctx context.Context) (string, error) {
 	defer zr.Close()
 	var bin *zip.File
 	for _, f := range zr.File {
-		if strings.HasSuffix(f.Name, "/bin/gh") && !f.FileInfo().IsDir() {
+		if strings.HasSuffix(f.Name, "/bin/"+ghName) && !f.FileInfo().IsDir() {
 			bin = f
 		}
 	}
@@ -160,7 +162,7 @@ func (c *Client) Install(ctx context.Context) (string, error) {
 	if err := os.Rename(dest+".part", dest); err != nil {
 		return "", err
 	}
-	if v, err := exec.CommandContext(ctx, dest, "--version").Output(); err != nil || !strings.Contains(string(v), "gh version") {
+	if v, err := hide.Cmd(exec.CommandContext(ctx, dest, "--version")).Output(); err != nil || !strings.Contains(string(v), "gh version") {
 		os.Remove(dest)
 		return "", fmt.Errorf("скачанный GitHub CLI не запускается: %v", err)
 	}
@@ -169,11 +171,11 @@ func (c *Client) Install(ctx context.Context) (string, error) {
 }
 
 // LoggedIn asks gh itself; the exit code is the answer (1 when no host is authenticated).
-func LoggedIn(gh string) bool { return exec.Command(gh, "auth", "status").Run() == nil }
+func LoggedIn(gh string) bool { return hide.Cmd(exec.Command(gh, "auth", "status")).Run() == nil }
 
 // User is the login of the active account, for messages; empty when unknown.
 func User(gh string) string {
-	out, _ := exec.Command(gh, "api", "user", "--jq", ".login").Output()
+	out, _ := hide.Cmd(exec.Command(gh, "api", "user", "--jq", ".login")).Output()
 	return strings.TrimSpace(string(out))
 }
 
@@ -195,7 +197,7 @@ var (
 // at gh for credentials, so private repositories clone under the employee's own account.
 func (c *Client) Login(ctx context.Context, gh string) error {
 	c.log("→ вход в GitHub через браузер")
-	cmd := exec.CommandContext(ctx, gh, "auth", "login", "--hostname", "github.com", "--git-protocol", "https", "--web", "--skip-ssh-key", "--clipboard")
+	cmd := hide.Cmd(exec.CommandContext(ctx, gh, "auth", "login", "--hostname", "github.com", "--git-protocol", "https", "--web", "--skip-ssh-key", "--clipboard"))
 	stderr, err := cmd.StderrPipe()
 	if err != nil {
 		return err
@@ -227,7 +229,7 @@ func (c *Client) Login(ctx context.Context, gh string) error {
 	if !LoggedIn(gh) {
 		return errors.New("вход в GitHub не подтверждён")
 	}
-	if out, err := exec.CommandContext(ctx, gh, "auth", "setup-git").CombinedOutput(); err != nil {
+	if out, err := hide.Cmd(exec.CommandContext(ctx, gh, "auth", "setup-git")).CombinedOutput(); err != nil {
 		return fmt.Errorf("gh auth setup-git: %v: %s", err, strings.TrimSpace(string(out)))
 	}
 	c.log("✅ вход в GitHub: " + User(gh))
@@ -247,9 +249,12 @@ func (c *Client) EnsureGit() error {
 	if ready() {
 		return nil
 	}
-	c.log("→ git: нет Command Line Tools, прошу систему установить")
+	c.log("→ git: не найден, прошу систему установить")
 	if err := request(); err != nil {
-		return fmt.Errorf("установка Command Line Tools: %w", err)
+		return fmt.Errorf("установка git: %w", err)
 	}
-	return errors.New("нужен git: установите Command Line Tools в открывшемся окне macOS и повторите действие")
+	if ready() { // the request installed it synchronously (winget on Windows)
+		return nil
+	}
+	return errors.New(gitAfterRequest)
 }

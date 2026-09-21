@@ -7,7 +7,10 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
+
+	"github.com/MOX-Studio/mox-access-app/internal/hide"
 )
 
 type Options struct {
@@ -30,13 +33,19 @@ type Report struct {
 	Repos   int
 }
 
-// CodexBinary is the engine inside ChatGPT.app, or codex on PATH.
+// CodexBinary is the engine inside ChatGPT.app, or codex on PATH. On Windows the engine sits inside the MSIX package,
+// whose folder a user cannot read; only a codex on PATH counts until the first Windows machine tells more (spike S3).
 func CodexBinary() (string, error) {
-	if p := "/Applications/ChatGPT.app/Contents/Resources/codex"; fileExists(p) {
-		return p, nil
+	if runtime.GOOS == "darwin" {
+		if p := "/Applications/ChatGPT.app/Contents/Resources/codex"; fileExists(p) {
+			return p, nil
+		}
 	}
 	if p, err := exec.LookPath("codex"); err == nil {
 		return p, nil
+	}
+	if runtime.GOOS == "windows" {
+		return "", errors.New("Codex CLI не найден в PATH: подключение набора MOX на Windows настраивается после первой проверки")
 	}
 	return "", errors.New("Codex не найден: установите ChatGPT.app")
 }
@@ -44,7 +53,7 @@ func CodexBinary() (string, error) {
 func fileExists(p string) bool { _, err := os.Stat(p); return err == nil }
 
 func (o Options) codex(args ...string) (string, error) {
-	cmd := exec.Command(o.Codex, args...)
+	cmd := hide.Cmd(exec.Command(o.Codex, args...))
 	cmd.Env = append(os.Environ(), "HOME="+o.Home, "CODEX_HOME="+o.CodexHome)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
@@ -76,7 +85,7 @@ func Setup(o Options) (Report, error) {
 		if gh == "" {
 			gh = "gh"
 		}
-		if exec.Command(gh, "auth", "status").Run() != nil {
+		if hide.Cmd(exec.Command(gh, "auth", "status")).Run() != nil {
 			return rep, errors.New("шаг «gh»: войдите в GitHub своим аккаунтом: gh auth login")
 		}
 	}
@@ -134,7 +143,7 @@ func Setup(o Options) (Report, error) {
 	dirs, _ := filepath.Glob(filepath.Join(o.Home, "MOX", "projects", "*", ".git"))
 	for _, g := range dirs {
 		repo := filepath.Dir(g)
-		if err := exec.Command("git", "-C", repo, "config", "core.hooksPath", hooks).Run(); err == nil {
+		if err := hide.Cmd(exec.Command("git", "-C", repo, "config", "core.hooksPath", hooks)).Run(); err == nil {
 			rep.Repos++
 		}
 	}

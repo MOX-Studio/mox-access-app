@@ -48,6 +48,7 @@ func (f *fakeOps) SetEnv(map[string]string) error { return f.note("env+") }
 func (f *fakeOps) UnsetEnv([]string) error        { return f.note("env-") }
 func (f *fakeOps) QuitCodex() error               { f.running = false; return f.note("quit") }
 func (f *fakeOps) LaunchCodex() error             { f.running = true; return f.note("launch") }
+func (f *fakeOps) RestartHint() string            { return "" }
 
 // gateway is an https server with a self-signed localhost leaf, answering /mox/export like the real one.
 func gateway(t *testing.T) (*httptest.Server, string) {

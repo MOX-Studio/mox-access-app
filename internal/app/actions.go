@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -78,6 +79,10 @@ func (a *App) Migrate(ctx context.Context) (MigrateSummary, error) {
 	}
 	defer a.release()
 	b := a.Bundle()
+	if runtime.GOOS == "windows" {
+		// Paths inside the threads would need Windows escaping in JSON and TOML; nobody migrates to Windows from the server.
+		return sum, errors.New("перенос с сервера на Windows не поддерживается: на сервере работали только с мака")
+	}
 	if a.Status().Mode != state.ModeCorporate || a.tn == nil {
 		return sum, errors.New("сначала включите корпоративный Codex — экспорт приходит через туннель")
 	}

@@ -2,10 +2,14 @@ package migrate
 
 import (
 	"fmt"
+	"io"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
+
+	"github.com/MOX-Studio/mox-access-app/internal/hide"
 )
 
 // repos.json comes from the server export; names become directories and origins become gh arguments, so both are
@@ -42,12 +46,12 @@ func CloneRepos(exportDir, projectsDir string, repos []Repo, gh string, log func
 		}
 		if r.Origin != nil && r.Pushed {
 			log("клонирую " + r.Name)
-			cmd := exec.Command(gh, "repo", "clone", "--", *r.Origin, dest)
+			cmd := hide.Cmd(exec.Command(gh, "repo", "clone", "--", *r.Origin, dest))
 			if out, err := cmd.CombinedOutput(); err != nil {
 				return done, fmt.Errorf("клон %s: %v: %s", r.Name, err, out)
 			}
 			if r.Branch != "" && r.Branch != "HEAD" {
-				if out, err := exec.Command("git", "-C", dest, "checkout", "-q", "--", r.Branch).CombinedOutput(); err != nil {
+				if out, err := hide.Cmd(exec.Command("git", "-C", dest, "checkout", "-q", "--", r.Branch)).CombinedOutput(); err != nil {
 					log(fmt.Sprintf("ветка %s в %s не переключилась: %s", r.Branch, r.Name, out))
 				}
 			}
@@ -58,11 +62,51 @@ func CloneRepos(exportDir, projectsDir string, repos []Repo, gh string, log func
 				continue
 			}
 			log("копирую " + r.Name + " (без origin)")
-			if out, err := exec.Command("cp", "-a", "--", src, dest).CombinedOutput(); err != nil {
-				return done, fmt.Errorf("копия %s: %v: %s", r.Name, err, out)
+			if err := copyTree(src, dest); err != nil {
+				return done, fmt.Errorf("копия %s: %w", r.Name, err)
 			}
 		}
 		done++
 	}
 	return done, nil
+}
+
+// copyTree copies a directory with its permissions, portable (cp -a is not on Windows); symlinks are recreated.
+func copyTree(src, dest string) error {
+	return filepath.WalkDir(src, func(p string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		rel, _ := filepath.Rel(src, p)
+		target := filepath.Join(dest, rel)
+		info, err := d.Info()
+		if err != nil {
+			return err
+		}
+		switch {
+		case d.IsDir():
+			return os.MkdirAll(target, info.Mode().Perm()|0o700)
+		case info.Mode()&os.ModeSymlink != 0:
+			link, err := os.Readlink(p)
+			if err != nil {
+				return err
+			}
+			return os.Symlink(link, target)
+		default:
+			in, err := os.Open(p)
+			if err != nil {
+				return err
+			}
+			defer in.Close()
+			out, err := os.OpenFile(target, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, info.Mode().Perm())
+			if err != nil {
+				return err
+			}
+			if _, err := io.Copy(out, in); err != nil {
+				out.Close()
+				return err
+			}
+			return out.Close()
+		}
+	})
 }

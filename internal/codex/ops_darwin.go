@@ -11,3 +11,4 @@ func (Darwin) SetEnv(vars map[string]string) error { return SetEnv(vars) }
 func (Darwin) UnsetEnv(keys []string) error        { return UnsetEnv(keys) }
 func (Darwin) QuitCodex() error                    { return QuitCodex() }
 func (Darwin) LaunchCodex() error                  { return LaunchCodex() }
+func (Darwin) RestartHint() string                 { return "" }

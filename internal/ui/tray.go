@@ -2,8 +2,6 @@ package ui
 
 import (
 	"context"
-	_ "embed"
-	"os/exec"
 	"strings"
 	"time"
 
@@ -13,21 +11,7 @@ import (
 )
 
 // The mark in the menu bar tells the state without words: the ring alone — personal Codex; a check inside — corporate
-// Codex on and the tunnel up; an exclamation — corporate on but the tunnel down. Template PNGs for macOS, colored for the rest.
-var (
-	//go:embed icon_template.png
-	iconOff []byte
-	//go:embed icon.png
-	iconOffColor []byte
-	//go:embed icon_template-on.png
-	iconOn []byte
-	//go:embed icon-on.png
-	iconOnColor []byte
-	//go:embed icon_template-attention.png
-	iconAttention []byte
-	//go:embed icon-attention.png
-	iconAttentionColor []byte
-)
+// Codex on and the tunnel up; an exclamation — corporate on but the tunnel down. The bytes live in icons_<os>.go.
 
 // Tray runs the menu until Quit; it must be called from the main goroutine (systray.Run).
 type Tray struct {
@@ -104,6 +88,10 @@ func (t *Tray) run(label string, fn func() error) {
 		t.Notify("MOX Access", label+": "+err.Error())
 		return
 	}
+	if hint := t.Web.App.Status().Hint; hint != "" && strings.HasPrefix(label, "Выключение") || hint != "" && strings.HasPrefix(label, "Включение") {
+		t.Notify("MOX Access", label+" — готово. "+hint)
+		return
+	}
 	t.Notify("MOX Access", label+" — готово")
 }
 
@@ -130,14 +118,13 @@ func (t *Tray) loop() {
 		case <-t.items.harness.ClickedCh:
 			go t.run("Обновление набора MOX", func() error { _, err := t.Web.App.Harness(context.Background(), true); return err })
 		case <-t.items.diag.ClickedCh:
-			exec.Command("open", t.Web.URL()).Start()
+			openURL(t.Web.URL())
 		case <-t.items.imp.ClickedCh:
 			go func() {
-				out, err := exec.Command("osascript", "-e", `POSIX path of (choose file with prompt "Файл .moxaccess от студии")`).Output()
-				if err != nil {
+				path, err := chooseFile()
+				if err != nil || path == "" {
 					return
 				}
-				path := strings.TrimSpace(string(out))
 				if err := t.Web.App.Import(path); err != nil {
 					t.Notify("MOX Access", "Файл не принят: "+err.Error())
 					return

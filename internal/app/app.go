@@ -31,6 +31,7 @@ type CodexOps interface {
 	UnsetEnv(keys []string) error
 	QuitCodex() error
 	LaunchCodex() error
+	RestartHint() string // what the employee must do after a restart when the platform cannot apply it itself (Windows: log out and in)
 }
 
 type Snapshot struct {
@@ -40,6 +41,7 @@ type Snapshot struct {
 	KeyText  string // last E2E check: "ключ действует" / "ключ отозван" / ""
 	Harness  string
 	Imported time.Time
+	Hint     string // platform note after ВКЛ/ВЫКЛ, empty on macOS
 }
 
 type App struct {
@@ -77,7 +79,7 @@ func (a *App) Bundle() *bundle.Bundle { a.mu.Lock(); defer a.mu.Unlock(); return
 func (a *App) Status() Snapshot {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	s := Snapshot{Mode: a.st.Mode, Employee: a.st.Employee, KeyText: a.st.LastCheckText, Harness: a.st.HarnessVersion, Imported: a.st.ImportedAt}
+	s := Snapshot{Mode: a.st.Mode, Employee: a.st.Employee, KeyText: a.st.LastCheckText, Harness: a.st.HarnessVersion, Imported: a.st.ImportedAt, Hint: a.ops.RestartHint()}
 	if a.tn != nil {
 		s.Tunnel = a.tn.Status()
 	}
