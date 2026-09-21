@@ -51,3 +51,18 @@ func requestGit() error {
 	}
 	return nil
 }
+
+// exposeOnPath prepends the private gh to the user's Path (registry + change broadcast), once; shells started after
+// the next logon see it, a Codex started now does not — the same limit as every variable on Windows.
+func exposeOnPath(binDir string) error {
+	script := "$dir = '" + strings.ReplaceAll(binDir, "'", "''") + "'\n" +
+		"$p = [Environment]::GetEnvironmentVariable('Path', 'User')\n" +
+		"if (($p -split ';') -contains $dir) { exit 0 }\n" +
+		"[Environment]::SetEnvironmentVariable('Path', ($dir + ';' + $p).TrimEnd(';'), 'User')\n"
+	cmd := exec.Command("powershell", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", script)
+	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return errors.New("Path: " + strings.TrimSpace(string(out)))
+	}
+	return nil
+}

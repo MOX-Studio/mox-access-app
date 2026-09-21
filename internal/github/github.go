@@ -62,12 +62,22 @@ func (c *Client) Find() string {
 	return ""
 }
 
-// Ensure returns a working gh, installing a private one when the machine has none.
+// Ensure returns a working gh, installing a private one when the machine has none. The private copy is also put on
+// the PATH of the employee's shells: Codex and the team skills (new-project) call plain `gh`, not this application.
 func (c *Client) Ensure(ctx context.Context) (string, error) {
-	if gh := c.Find(); gh != "" {
-		return gh, nil
+	gh := c.Find()
+	if gh == "" {
+		var err error
+		if gh, err = c.Install(ctx); err != nil {
+			return "", err
+		}
 	}
-	return c.Install(ctx)
+	if gh == c.private() {
+		if err := exposeOnPath(filepath.Dir(gh)); err != nil {
+			c.log("gh в PATH оболочек не добавлен: " + err.Error())
+		}
+	}
+	return gh, nil
 }
 
 // Install downloads the latest gh release for this platform and keeps only its binary under the application directory:
