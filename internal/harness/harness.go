@@ -34,7 +34,7 @@ type Report struct {
 }
 
 // CodexBinary is the engine inside ChatGPT.app, or codex on PATH. On Windows the engine sits inside the MSIX package,
-// whose folder a user cannot read; only a codex on PATH counts until the first Windows machine tells more (spike S3).
+// whose folder a user cannot read; CodexCLI.Ensure downloads a private standalone copy there.
 func CodexBinary() (string, error) {
 	if runtime.GOOS == "darwin" {
 		if p := "/Applications/ChatGPT.app/Contents/Resources/codex"; fileExists(p) {
@@ -44,10 +44,7 @@ func CodexBinary() (string, error) {
 	if p, err := exec.LookPath("codex"); err == nil {
 		return p, nil
 	}
-	if runtime.GOOS == "windows" {
-		return "", errors.New("Codex CLI не найден в PATH: подключение набора MOX на Windows настраивается после первой проверки")
-	}
-	return "", errors.New("Codex не найден: установите ChatGPT.app")
+	return "", errors.New("Codex не найден")
 }
 
 func fileExists(p string) bool { _, err := os.Stat(p); return err == nil }

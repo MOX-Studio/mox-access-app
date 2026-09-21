@@ -166,13 +166,18 @@ func (a *App) Harness(ctx context.Context, withDev bool) (harness.Report, error)
 		return harness.Report{}, err
 	}
 	defer a.release()
-	bin, err := harness.CodexBinary()
+	bin, err := (&harness.CodexCLI{Dir: a.Dir, Log: a.log}).Ensure(ctx)
 	if err != nil {
 		return harness.Report{}, err
 	}
 	gh, err := a.ensureGitHub(ctx)
 	if err != nil {
 		return harness.Report{}, err
+	}
+	// The skills of the set are shell scripts calling gh, git and python; its MCP servers start through npx and uvx.
+	// What the machine lacks is installed where the platform allows it (Windows: winget) and named otherwise.
+	for _, note := range harness.EnsureRuntime(a.log) {
+		a.log("набор MOX: " + note)
 	}
 	b := a.Bundle()
 	userHome, _ := os.UserHomeDir()
