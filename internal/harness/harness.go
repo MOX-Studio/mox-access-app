@@ -12,6 +12,7 @@ import (
 
 type Options struct {
 	Codex      string // path to the codex binary
+	Gh         string // path to gh; empty = "gh" on PATH
 	Home       string // $HOME
 	CodexHome  string // ~/.codex
 	Source     string // "MOX-Studio/mox-harness"
@@ -71,7 +72,11 @@ func Setup(o Options) (Report, error) {
 	var rep Report
 	if !o.SkipGitHub {
 		o.Log("→ gh")
-		if exec.Command("gh", "auth", "status").Run() != nil {
+		gh := o.Gh
+		if gh == "" {
+			gh = "gh"
+		}
+		if exec.Command(gh, "auth", "status").Run() != nil {
 			return rep, errors.New("шаг «gh»: войдите в GitHub своим аккаунтом: gh auth login")
 		}
 	}

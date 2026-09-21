@@ -18,6 +18,7 @@ import (
 
 	"github.com/MOX-Studio/mox-access-app/internal/bundle"
 	"github.com/MOX-Studio/mox-access-app/internal/codex"
+	"github.com/MOX-Studio/mox-access-app/internal/github"
 	"github.com/MOX-Studio/mox-access-app/internal/state"
 	"github.com/MOX-Studio/mox-access-app/internal/tunnel"
 )
@@ -42,14 +43,15 @@ type Snapshot struct {
 }
 
 type App struct {
-	Dir  string
-	ops  CodexOps
-	log  func(string)
-	mu   sync.Mutex
-	b    *bundle.Bundle
-	st   state.State
-	tn   *tunnel.Tunnel
-	busy bool
+	Dir    string
+	GitHub *github.Client // gh, browser login, git — main sets how the one-time code is shown
+	ops    CodexOps
+	log    func(string)
+	mu     sync.Mutex
+	b      *bundle.Bundle
+	st     state.State
+	tn     *tunnel.Tunnel
+	busy   bool
 }
 
 func New(dir string, ops CodexOps, log func(string)) (*App, error) {
@@ -59,7 +61,7 @@ func New(dir string, ops CodexOps, log func(string)) (*App, error) {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return nil, err
 	}
-	a := &App{Dir: dir, ops: ops, log: log, st: state.Load(dir)}
+	a := &App{Dir: dir, ops: ops, log: log, st: state.Load(dir), GitHub: &github.Client{Dir: dir, Log: log}}
 	if raw, err := os.ReadFile(filepath.Join(dir, "bundle.moxaccess")); err == nil {
 		if b, err := bundle.Parse(raw); err == nil {
 			a.b = b

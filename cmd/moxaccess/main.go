@@ -45,6 +45,7 @@ func main() {
 		fmt.Println("импортирован доступ для", a.Status().Employee)
 		return
 	}
+	a.GitHub.Show = showCode
 	logf("MOX Access " + Version + " запущен")
 	if !*noAutostart {
 		if err := installAutostart(home); err != nil {
@@ -60,6 +61,14 @@ func main() {
 	}
 	tray := &ui.Tray{Web: web, Log: logf, Notify: notify, OnQuit: func() { web.Stop(); logf("выход") }}
 	tray.Run()
+}
+
+// showCode puts the one-time GitHub code in front of the employee: a dialog that stays until they read it, and a
+// notification. gh has already copied the code to the clipboard and opened the browser.
+func showCode(code, url string) {
+	text := "Код для входа в GitHub: " + code + "\n\nОн уже скопирован. В браузере открылась страница " + url + " — вставь код и войди своим аккаунтом GitHub."
+	go exec.Command("osascript", "-e", fmt.Sprintf(`display dialog %q with title "MOX Access" buttons {"OK"} default button 1`, text)).Run()
+	notify("MOX Access", "Код для GitHub: "+code+" (скопирован в буфер)")
 }
 
 func notify(title, text string) {

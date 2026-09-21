@@ -35,7 +35,7 @@ type Tray struct {
 	Log    func(string)
 	Notify func(title, text string)
 	OnQuit func()
-	items  struct{ toggle, tunnel, migrate, harness, diag, imp, quit *systray.MenuItem }
+	items  struct{ toggle, tunnel, github, migrate, harness, diag, imp, quit *systray.MenuItem }
 	icon   *byte // first byte of the icon currently shown, so refresh sets the image only when the state changes
 }
 
@@ -48,6 +48,7 @@ func (t *Tray) ready() {
 	t.items.tunnel = systray.AddMenuItem("Туннель: —", "")
 	t.items.tunnel.Disable()
 	systray.AddSeparator()
+	t.items.github = systray.AddMenuItem("Войти в GitHub", "Свой аккаунт GitHub: проекты и набор команды")
 	t.items.migrate = systray.AddMenuItem("Перенести с сервера…", "Треды и проекты с vps6")
 	t.items.harness = systray.AddMenuItem("Обновить набор MOX", "Правила, скиллы, MCP команды")
 	t.items.diag = systray.AddMenuItem("Диагностика…", "Открыть страницу состояния")
@@ -116,6 +117,14 @@ func (t *Tray) loop() {
 				t.Notify("MOX Access", "Включаю корпоративный Codex. macOS может попросить пароль — это доверие сертификату шлюза.")
 				go t.run("Включение корпоративного Codex", func() error { return t.Web.App.Enable(context.Background()) })
 			}
+		case <-t.items.github.ClickedCh:
+			go t.run("Вход в GitHub", func() error {
+				user, err := t.Web.App.GitHubLogin(context.Background())
+				if err == nil && user != "" {
+					t.Log("GitHub: " + user)
+				}
+				return err
+			})
 		case <-t.items.migrate.ClickedCh:
 			go t.run("Перенос с сервера", func() error { _, err := t.Web.App.Migrate(context.Background()); return err })
 		case <-t.items.harness.ClickedCh:

@@ -113,6 +113,10 @@ func (w *Web) handler() http.Handler {
 		}
 		return w.App.Status().KeyText, nil
 	})
+	action("github", func(ctx context.Context) (string, error) {
+		user, err := w.App.GitHubLogin(ctx)
+		return "вход в GitHub: " + user, err
+	})
 	action("harness", func(ctx context.Context) (string, error) {
 		rep, err := w.App.Harness(ctx, true)
 		if err != nil {

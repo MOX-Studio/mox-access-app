@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/MOX-Studio/mox-access-app/internal/github"
 	"github.com/MOX-Studio/mox-access-app/internal/harness"
 	"github.com/MOX-Studio/mox-access-app/internal/migrate"
 	"github.com/MOX-Studio/mox-access-app/internal/state"
@@ -29,6 +30,35 @@ func (a *App) httpClient() *http.Client {
 	}
 	client.Transport = transport
 	return client
+}
+
+// ensureGitHub is what migration and the harness need before anything else: git, a gh, a login under the employee's
+// own account. Each part checks first and acts only when missing; the login shows its one-time code through GitHub.Show.
+func (a *App) ensureGitHub(ctx context.Context) (string, error) {
+	if err := a.GitHub.EnsureGit(); err != nil {
+		return "", err
+	}
+	gh, err := a.GitHub.Ensure(ctx)
+	if err != nil {
+		return "", err
+	}
+	if err := a.GitHub.EnsureLogin(ctx, gh); err != nil {
+		return "", err
+	}
+	return gh, nil
+}
+
+// GitHubLogin is the menu action «Войти в GitHub»; it returns the login of the account.
+func (a *App) GitHubLogin(ctx context.Context) (string, error) {
+	if err := a.take(); err != nil {
+		return "", err
+	}
+	defer a.release()
+	gh, err := a.ensureGitHub(ctx)
+	if err != nil {
+		return "", err
+	}
+	return github.User(gh), nil
 }
 
 // MigrateSummary is what the employee sees after «Перенести с сервера».
@@ -53,6 +83,10 @@ func (a *App) Migrate(ctx context.Context) (MigrateSummary, error) {
 	}
 	home := a.ops.Home()
 	userHome, _ := os.UserHomeDir()
+	gh, err := a.ensureGitHub(ctx) // before Codex is closed: the login may need the employee at the browser
+	if err != nil {
+		return sum, err
+	}
 	work, err := os.MkdirTemp("", "mox-migrate-")
 	if err != nil {
 		return sum, err
@@ -78,7 +112,7 @@ func (a *App) Migrate(ctx context.Context) (MigrateSummary, error) {
 		return sum, fmt.Errorf("repos.json: %w", err)
 	}
 	a.log("→ клонирую проекты")
-	n, err := migrate.CloneRepos(extracted, filepath.Join(userHome, "MOX", "projects"), repos, a.log)
+	n, err := migrate.CloneRepos(extracted, filepath.Join(userHome, "MOX", "projects"), repos, gh, a.log)
 	sum.Repos = n
 	if err != nil {
 		return sum, err
@@ -131,9 +165,13 @@ func (a *App) Harness(ctx context.Context, withDev bool) (harness.Report, error)
 	if err != nil {
 		return harness.Report{}, err
 	}
+	gh, err := a.ensureGitHub(ctx)
+	if err != nil {
+		return harness.Report{}, err
+	}
 	b := a.Bundle()
 	userHome, _ := os.UserHomeDir()
-	rep, err := harness.Setup(harness.Options{Codex: bin, Home: userHome, CodexHome: a.ops.Home(), Source: "MOX-Studio/mox-harness", WithDev: withDev, Name: b.Employee.Name, Email: b.Employee.Email, Log: a.log})
+	rep, err := harness.Setup(harness.Options{Codex: bin, Gh: gh, Home: userHome, CodexHome: a.ops.Home(), Source: "MOX-Studio/mox-harness", WithDev: withDev, Name: b.Employee.Name, Email: b.Employee.Email, Log: a.log})
 	if err != nil {
 		return rep, err
 	}

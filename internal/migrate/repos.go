@@ -18,7 +18,10 @@ var (
 // CloneRepos recreates ~/MOX/projects: repositories with an origin are cloned with gh under the employee's own
 // account and switched to the branch the server was on (the WIP branch when there was uncommitted work);
 // those without one come whole from repos-no-remote/. Existing directories are left alone.
-func CloneRepos(exportDir, projectsDir string, repos []Repo, log func(string)) (int, error) {
+func CloneRepos(exportDir, projectsDir string, repos []Repo, gh string, log func(string)) (int, error) {
+	if gh == "" {
+		gh = "gh"
+	}
 	if err := os.MkdirAll(projectsDir, 0o755); err != nil {
 		return 0, err
 	}
@@ -39,7 +42,7 @@ func CloneRepos(exportDir, projectsDir string, repos []Repo, log func(string)) (
 		}
 		if r.Origin != nil && r.Pushed {
 			log("клонирую " + r.Name)
-			cmd := exec.Command("gh", "repo", "clone", "--", *r.Origin, dest)
+			cmd := exec.Command(gh, "repo", "clone", "--", *r.Origin, dest)
 			if out, err := cmd.CombinedOutput(); err != nil {
 				return done, fmt.Errorf("клон %s: %v: %s", r.Name, err, out)
 			}
