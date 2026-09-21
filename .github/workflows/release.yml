@@ -2,6 +2,8 @@ name: release
 on:
   push:
     tags: ['v*']
+permissions:
+  contents: write   # the release and its assets
 jobs:
   mac:
     runs-on: macos-14
