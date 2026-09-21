@@ -53,7 +53,7 @@ func (t *Tray) ready() {
 	t.items.harness = systray.AddMenuItem("Обновить набор MOX", "Правила, скиллы, MCP команды")
 	t.items.diag = systray.AddMenuItem("Диагностика…", "Открыть страницу состояния")
 	systray.AddSeparator()
-	t.items.imp = systray.AddMenuItem("Импортировать .moxaccess…", "Файл доступа от Дениса")
+	t.items.imp = systray.AddMenuItem("Импортировать .moxaccess…", "Файл доступа от студии")
 	t.items.quit = systray.AddMenuItem("Выйти", "")
 	go t.loop()
 	go func() {
@@ -133,7 +133,7 @@ func (t *Tray) loop() {
 			exec.Command("open", t.Web.URL()).Start()
 		case <-t.items.imp.ClickedCh:
 			go func() {
-				out, err := exec.Command("osascript", "-e", `POSIX path of (choose file with prompt "Файл .moxaccess от Дениса")`).Output()
+				out, err := exec.Command("osascript", "-e", `POSIX path of (choose file with prompt "Файл .moxaccess от студии")`).Output()
 				if err != nil {
 					return
 				}

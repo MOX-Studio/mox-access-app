@@ -48,9 +48,9 @@ func Download(client *http.Client, origin, token, dst string) (string, error) {
 	switch resp.StatusCode {
 	case 200:
 	case 401:
-		return "", errors.New("ключ MOX отозван — попросите у Дениса новый файл .moxaccess")
+		return "", errors.New("ключ MOX отозван — попросите у студии новый файл .moxaccess")
 	case 404:
-		return "", errors.New("экспорта для вас ещё нет — попросите Дениса сделать его на сервере")
+		return "", errors.New("экспорта для вас ещё нет — напишите в аккаунт студии, его сделают на сервере")
 	default:
 		return "", fmt.Errorf("неожиданный ответ шлюза: %d", resp.StatusCode)
 	}

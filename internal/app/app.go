@@ -116,7 +116,7 @@ func (a *App) take() error {
 		return errors.New("предыдущее действие ещё выполняется")
 	}
 	if a.b == nil {
-		return errors.New("сначала импортируйте файл .moxaccess от Дениса")
+		return errors.New("сначала импортируйте файл .moxaccess от студии")
 	}
 	a.busy = true
 	return nil
@@ -183,7 +183,25 @@ func (a *App) Enable(ctx context.Context) error {
 		return rollback(err)
 	}
 	if b.Relay != nil {
-		if err := step("туннель к шлюзу", func() error { return a.startTunnel(ctx, b) }, func() error { a.stopTunnel(); return nil }); err != nil {
+		// A VPN or a flaky network can drop the very first handshake (Shadowrocket re-originates every connection and stalls
+		// for a moment when it reconnects); three attempts cover a hiccup without hiding a real outage.
+		if err := step("туннель к шлюзу", func() error {
+			var err error
+			for attempt := 1; attempt <= 3; attempt++ {
+				if err = a.startTunnel(ctx, b); err == nil {
+					return nil
+				}
+				if attempt < 3 {
+					a.log(fmt.Sprintf("туннель: попытка %d не удалась (%v), повторяю", attempt, err))
+					select {
+					case <-time.After(4 * time.Second):
+					case <-ctx.Done():
+						return ctx.Err()
+					}
+				}
+			}
+			return err
+		}, func() error { a.stopTunnel(); return nil }); err != nil {
 			return rollback(err)
 		}
 	}
@@ -326,7 +344,7 @@ func (a *App) check(ctx context.Context) error {
 	case err != nil:
 		text, retErr = "шлюз недоступен", fmt.Errorf("шлюз не отвечает через туннель: %w", err)
 	case resp.StatusCode == 401:
-		text, retErr = "ключ отозван", errors.New("ключ MOX отозван — попросите у Дениса новый файл .moxaccess")
+		text, retErr = "ключ отозван", errors.New("ключ MOX отозван — попросите у студии новый файл .moxaccess")
 	case resp.StatusCode == 200 || resp.StatusCode == 404:
 		text = "ключ действует"
 	default:
