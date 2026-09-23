@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strings"
 
 	"github.com/MOX-Studio/mox-access-app/internal/hide"
 )
@@ -19,15 +20,17 @@ var (
 	repoOriginRe = regexp.MustCompile(`^https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(\.git)?$`)
 )
 
-// CloneRepos recreates ~/MOX/projects: repositories with an origin are cloned with gh under the employee's own
+// CloneRepos recreates ~/AI/Project/{MOX,Personal}: repositories with an origin are cloned with gh under the employee's own
 // account and switched to the branch the server was on (the WIP branch when there was uncommitted work);
 // those without one come whole from repos-no-remote/. Existing directories are left alone.
 func CloneRepos(exportDir, projectsDir string, repos []Repo, gh string, log func(string)) (int, error) {
 	if gh == "" {
 		gh = "gh"
 	}
-	if err := os.MkdirAll(projectsDir, 0o755); err != nil {
-		return 0, err
+	for _, category := range []string{"MOX", "Personal"} {
+		if err := os.MkdirAll(filepath.Join(projectsDir, category), 0o755); err != nil {
+			return 0, err
+		}
 	}
 	done := 0
 	for _, r := range repos {
@@ -39,7 +42,7 @@ func CloneRepos(exportDir, projectsDir string, repos []Repo, gh string, log func
 			log("пропуск " + r.Name + ": origin не похож на адрес GitHub")
 			continue
 		}
-		dest := filepath.Join(projectsDir, r.Name)
+		dest := filepath.Join(projectsDir, repoCategory(r), r.Name)
 		if _, err := os.Stat(dest); err == nil {
 			log("пропуск " + r.Name + ": каталог уже есть")
 			continue
@@ -69,6 +72,16 @@ func CloneRepos(exportDir, projectsDir string, repos []Repo, gh string, log func
 		done++
 	}
 	return done, nil
+}
+
+func repoCategory(r Repo) string {
+	if r.Origin != nil {
+		parts := strings.Split(strings.TrimPrefix(*r.Origin, "https://github.com/"), "/")
+		if len(parts) == 2 && strings.EqualFold(parts[0], "MOX-Studio") {
+			return "MOX"
+		}
+	}
+	return "Personal"
 }
 
 // copyTree copies a directory with its permissions, portable (cp -a is not on Windows); symlinks are recreated.

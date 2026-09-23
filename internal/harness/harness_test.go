@@ -29,7 +29,7 @@ func TestSetupOrder(t *testing.T) {
 	os.MkdirAll(filepath.Join(root, "profiles"), 0o755)
 	os.WriteFile(filepath.Join(root, "profiles", "lilya.md"), []byte("<!-- mox-personal:begin -->\nЯ — Лиля.\n<!-- mox-personal:end -->\n"), 0o644)
 	home := filepath.Join(dir, "home")
-	repo := filepath.Join(home, "MOX", "projects", "demo")
+	repo := filepath.Join(home, "AI", "Project", "MOX", "demo")
 	os.MkdirAll(repo, 0o755)
 	if err := exec.Command("git", "init", "-q", repo).Run(); err != nil {
 		t.Fatal(err)
@@ -51,7 +51,15 @@ func TestSetupOrder(t *testing.T) {
 	if !strings.Contains(string(agents), "Правила") || !strings.Contains(string(agents), "Я — Лиля") {
 		t.Fatal("AGENTS block missing")
 	}
-	emp, _ := os.ReadFile(filepath.Join(home, ".mox", "employee"))
+	canonical, _ := os.ReadFile(filepath.Join(home, "AI", "AGENTS.md"))
+	if string(canonical) != string(agents) {
+		t.Fatal("Codex mirror differs from canonical AI instruction")
+	}
+	claude, _ := os.ReadFile(filepath.Join(home, "AI", "CLAUDE.md"))
+	if !strings.Contains(string(claude), "@AGENTS.md") {
+		t.Fatal("Claude does not import canonical instruction")
+	}
+	emp, _ := os.ReadFile(filepath.Join(home, "AI", ".mox", "employee"))
 	if string(emp) != "name=Лиля\nemail=l@x.com\n" {
 		t.Fatalf("employee: %q", emp)
 	}

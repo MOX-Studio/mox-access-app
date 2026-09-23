@@ -1,5 +1,5 @@
 // Package harness connects the machine to MOX-Studio/mox-harness: the plugin marketplace of the team, the block of
-// team rules in ~/.codex/AGENTS.md, the employee identity for `end`, and the class-aware git hook in every project.
+// team rules in ~/AI/AGENTS.md (mirrored to ~/.codex/AGENTS.md), the employee identity for `end`, and the class-aware git hook in every project.
 // It is setup.sh of the harness repository in Go, with the same order of steps.
 package harness
 
