@@ -26,6 +26,8 @@ func TestSetupOrder(t *testing.T) {
 	os.MkdirAll(filepath.Join(root, "hooks"), 0o755)
 	os.WriteFile(filepath.Join(root, "catalog.json"), []byte(`{"version":"0.3.0"}`), 0o644)
 	os.WriteFile(filepath.Join(root, "AGENTS.md"), []byte("# Правила\n"), 0o644)
+	os.MkdirAll(filepath.Join(root, "profiles"), 0o755)
+	os.WriteFile(filepath.Join(root, "profiles", "lilya.md"), []byte("<!-- mox-personal:begin -->\nЯ — Лиля.\n<!-- mox-personal:end -->\n"), 0o644)
 	home := filepath.Join(dir, "home")
 	repo := filepath.Join(home, "MOX", "projects", "demo")
 	os.MkdirAll(repo, 0o755)
@@ -46,7 +48,7 @@ func TestSetupOrder(t *testing.T) {
 		t.Fatalf("report: %+v", rep)
 	}
 	agents, _ := os.ReadFile(filepath.Join(home, ".codex", "AGENTS.md"))
-	if !strings.Contains(string(agents), "Правила") {
+	if !strings.Contains(string(agents), "Правила") || !strings.Contains(string(agents), "Я — Лиля") {
 		t.Fatal("AGENTS block missing")
 	}
 	emp, _ := os.ReadFile(filepath.Join(home, ".mox", "employee"))

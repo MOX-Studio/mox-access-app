@@ -46,3 +46,43 @@ func TestAgentsBlock(t *testing.T) {
 		t.Fatal("malformed markers must error")
 	}
 }
+
+func TestPersonalProfilePreserved(t *testing.T) {
+	target := filepath.Join(t.TempDir(), "AGENTS.md")
+	profile := "<!-- mox-personal:begin -->\nЯ — Динара.\n<!-- mox-personal:end -->\n"
+	if err := ApplyAgentsBlockWithProfile(target, "командные v1", "0.3.0", profile); err != nil {
+		t.Fatal(err)
+	}
+	first := mustRead(t, target)
+	if !strings.Contains(first, "Я — Динара") || !strings.Contains(first, "командные v1") {
+		t.Fatal("личный или командный блок не установлен")
+	}
+	changed := strings.Replace(first, "Я — Динара.", "Я — Динара. Пиши кратко.", 1)
+	os.WriteFile(target, []byte(changed), 0o644)
+	if err := ApplyAgentsBlockWithProfile(target, "командные v2", "0.3.1", profile); err != nil {
+		t.Fatal(err)
+	}
+	got := mustRead(t, target)
+	if strings.Count(got, "mox-personal:begin") != 1 || !strings.Contains(got, "Пиши кратко") || !strings.Contains(got, "командные v2") {
+		t.Fatalf("обновление стерло личный текст: %s", got)
+	}
+	if profileFor("Вова", t.TempDir()) != "" || !strings.HasSuffix(profileFor("Dinara Bekman", "/tmp/harness"), filepath.Join("profiles", "dinara.md")) {
+		t.Fatal("неверный выбор личного профиля")
+	}
+}
+
+func TestPersonalProfileRejectsSymlink(t *testing.T) {
+	dir := t.TempDir()
+	source := filepath.Join(dir, "source.md")
+	link := filepath.Join(dir, "AGENTS.md")
+	os.WriteFile(source, []byte("сохранить"), 0o644)
+	if err := os.Symlink(source, link); err != nil {
+		t.Skipf("symlink недоступен: %v", err)
+	}
+	if err := ApplyAgentsBlockWithProfile(link, "rules", "0.3.0", "личное"); err == nil {
+		t.Fatal("ссылка принята")
+	}
+	if got := mustRead(t, source); got != "сохранить" {
+		t.Fatal("цель ссылки изменена")
+	}
+}
