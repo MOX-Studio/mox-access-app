@@ -116,8 +116,12 @@ func (a *App) Migrate(ctx context.Context) (MigrateSummary, error) {
 	if err != nil {
 		return sum, fmt.Errorf("repos.json: %w", err)
 	}
+	repos, err = migrate.ClassifyLocalOnlyRepos(extracted, repos)
+	if err != nil {
+		return sum, err
+	}
 	a.log("→ клонирую проекты")
-	n, err := migrate.CloneRepos(extracted, filepath.Join(userHome, "MOX", "projects"), repos, gh, a.log)
+	n, err := migrate.CloneRepos(extracted, filepath.Join(userHome, "AI", "Project"), repos, gh, a.log)
 	sum.Repos = n
 	if err != nil {
 		return sum, err
@@ -125,7 +129,7 @@ func (a *App) Migrate(ctx context.Context) (MigrateSummary, error) {
 	srcCodex := filepath.Join(extracted, "codex")
 	serverUser := serverUserOf(extracted, b.Employee.Email)
 	a.log("→ переписываю пути /home/" + serverUser + " → " + userHome)
-	st, err := migrate.RewritePaths(srcCodex, "/home/"+serverUser, userHome)
+	st, err := migrate.RewritePaths(srcCodex, "/home/"+serverUser, userHome, repos...)
 	if err != nil {
 		return sum, err
 	}
@@ -181,6 +185,31 @@ func (a *App) Harness(ctx context.Context, withDev bool) (harness.Report, error)
 	}
 	b := a.Bundle()
 	userHome, _ := os.UserHomeDir()
+	moves, err := migrate.PlanLocalProjects(userHome)
+	if err != nil {
+		return harness.Report{}, fmt.Errorf("проверка старых проектов: %w", err)
+	}
+	if len(moves) > 0 {
+		a.log("→ закрываю Codex на время переноса проектов в ~/AI")
+		if err := a.ops.QuitCodex(); err != nil {
+			return harness.Report{}, err
+		}
+		defer func() { a.log("→ открываю Codex"); _ = a.ops.LaunchCodex() }()
+		if catalog := filepath.Join(a.ops.Home(), "sqlite", "codex-dev.db"); fileExists(catalog) {
+			stamp := time.Now().Format("20060102-150405")
+			for _, suffix := range []string{"", "-wal", "-shm"} {
+				if fileExists(catalog + suffix) {
+					if err := os.Rename(catalog+suffix, catalog+suffix+".bak-mox-ai-"+stamp); err != nil {
+						return harness.Report{}, fmt.Errorf("каталог тредов Codex: %w", err)
+					}
+				}
+			}
+			a.log("каталог оболочки отложен (пересоберётся при запуске)")
+		}
+		if _, err := migrate.RehomeLocalProjects(userHome, a.ops.Home(), a.log); err != nil {
+			return harness.Report{}, fmt.Errorf("перенос в ~/AI: %w", err)
+		}
+	}
 	rep, err := harness.Setup(harness.Options{Codex: bin, Gh: gh, Home: userHome, CodexHome: a.ops.Home(), Source: "MOX-Studio/mox-harness", WithDev: withDev, Name: b.Employee.Name, Email: b.Employee.Email, Log: a.log})
 	if err != nil {
 		return rep, err

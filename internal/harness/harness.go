@@ -119,7 +119,7 @@ func Setup(o Options) (Report, error) {
 		}
 		rep.Plugins = append(rep.Plugins, p)
 	}
-	o.Log("→ правила команды → " + filepath.Join(o.CodexHome, "AGENTS.md"))
+	o.Log("→ рабочая область и правила → " + filepath.Join(o.Home, "AI", "AGENTS.md"))
 	body, err := os.ReadFile(filepath.Join(rep.Root, "AGENTS.md"))
 	if err != nil {
 		return rep, fmt.Errorf("шаг «правила»: %w", err)
@@ -135,25 +135,40 @@ func Setup(o Options) (Report, error) {
 			profile = string(data)
 		}
 	}
-	if err := ApplyAgentsBlockWithProfile(filepath.Join(o.CodexHome, "AGENTS.md"), string(body), rep.Version, profile); err != nil {
+	if _, err := InstallWorkspace(o.Home, o.CodexHome, string(body), rep.Version, profile); err != nil {
 		return rep, fmt.Errorf("шаг «правила»: %w", err)
 	}
 	if o.Name != "" || o.Email != "" {
-		o.Log("→ сотрудник → ~/.mox/employee")
-		if err := os.MkdirAll(filepath.Join(o.Home, ".mox"), 0o700); err != nil {
+		o.Log("→ сотрудник → ~/AI/.mox/employee")
+		meta := filepath.Join(o.Home, "AI", ".mox")
+		if err := os.MkdirAll(meta, 0o700); err != nil {
 			return rep, err
 		}
-		if err := os.WriteFile(filepath.Join(o.Home, ".mox", "employee"), []byte("name="+o.Name+"\nemail="+o.Email+"\n"), 0o600); err != nil {
+		legacy := filepath.Join(o.Home, ".mox", "employee")
+		if old, err := os.ReadFile(legacy); err == nil {
+			if err := os.WriteFile(filepath.Join(meta, "employee.legacy"), old, 0o600); err != nil {
+				return rep, err
+			}
+			if err := os.Remove(legacy); err != nil {
+				return rep, err
+			}
+			_ = os.Remove(filepath.Dir(legacy))
+		} else if !os.IsNotExist(err) {
+			return rep, err
+		}
+		if err := os.WriteFile(filepath.Join(meta, "employee"), []byte("name="+o.Name+"\nemail="+o.Email+"\n"), 0o600); err != nil {
 			return rep, fmt.Errorf("шаг «сотрудник»: %w", err)
 		}
 	}
-	o.Log("→ хук классов в репо ~/MOX/projects")
+	o.Log("→ хук классов в репо ~/AI/Project")
 	hooks := filepath.Join(rep.Root, "hooks")
-	dirs, _ := filepath.Glob(filepath.Join(o.Home, "MOX", "projects", "*", ".git"))
-	for _, g := range dirs {
-		repo := filepath.Dir(g)
-		if err := hide.Cmd(exec.Command("git", "-C", repo, "config", "core.hooksPath", hooks)).Run(); err == nil {
-			rep.Repos++
+	for _, category := range []string{"MOX", "Personal"} {
+		dirs, _ := filepath.Glob(filepath.Join(o.Home, "AI", "Project", category, "*", ".git"))
+		for _, g := range dirs {
+			repo := filepath.Dir(g)
+			if err := hide.Cmd(exec.Command("git", "-C", repo, "config", "core.hooksPath", hooks)).Run(); err == nil {
+				rep.Repos++
+			}
 		}
 	}
 	o.Log(fmt.Sprintf("✅ harness %s подключён: %s (репо с хуком: %d)", rep.Version, rep.Root, rep.Repos))
