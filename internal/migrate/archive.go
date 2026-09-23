@@ -26,11 +26,12 @@ type Meta struct {
 }
 
 type Repo struct {
-	Name   string  `json:"name"`
-	Origin *string `json:"origin"`
-	Branch string  `json:"branch"`
-	Pushed bool    `json:"pushed"`
-	WIP    *string `json:"wip"`
+	Name     string  `json:"name"`
+	Origin   *string `json:"origin"`
+	Category string  `json:"category,omitempty"`
+	Branch   string  `json:"branch"`
+	Pushed   bool    `json:"pushed"`
+	WIP      *string `json:"wip"`
 }
 
 // Download fetches /mox/export through the tunnel with the MOX key and verifies the checksum the gateway sends.

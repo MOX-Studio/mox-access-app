@@ -22,10 +22,16 @@ var (
 
 // CloneRepos recreates ~/AI/Project/{MOX,Personal}: repositories with an origin are cloned with gh under the employee's own
 // account and switched to the branch the server was on (the WIP branch when there was uncommitted work);
-// those without one come whole from repos-no-remote/. Existing directories are left alone.
+// unpublished repositories with an origin come whole from repos-no-remote/.
+// Repositories without an origin stop before writing because their owner cannot be inferred.
 func CloneRepos(exportDir, projectsDir string, repos []Repo, gh string, log func(string)) (int, error) {
 	if gh == "" {
 		gh = "gh"
+	}
+	for _, r := range repos {
+		if repoNameRe.MatchString(r.Name) && r.Name != "." && r.Name != ".." && r.Origin == nil && repoCategory(r) == "" {
+			return 0, fmt.Errorf("%s: у проекта нет GitHub origin; нельзя определить MOX или Personal без решения владельца", r.Name)
+		}
 	}
 	for _, category := range []string{"MOX", "Personal"} {
 		if err := os.MkdirAll(filepath.Join(projectsDir, category), 0o755); err != nil {
@@ -77,11 +83,35 @@ func CloneRepos(exportDir, projectsDir string, repos []Repo, gh string, log func
 func repoCategory(r Repo) string {
 	if r.Origin != nil {
 		parts := strings.Split(strings.TrimPrefix(*r.Origin, "https://github.com/"), "/")
-		if len(parts) == 2 && strings.EqualFold(parts[0], "MOX-Studio") {
-			return "MOX"
+		if len(parts) == 2 {
+			if strings.EqualFold(parts[0], "MOX-Studio") {
+				return "MOX"
+			}
+			return "Personal"
 		}
 	}
-	return "Personal"
+	if r.Origin == nil && r.Category == "Personal" {
+		return "Personal"
+	}
+	return ""
+}
+
+// ClassifyLocalOnlyRepos recognises a documented personal sandbox in the server export.
+// Other unpublished projects stop before cloning so studio ownership is never guessed.
+func ClassifyLocalOnlyRepos(exportDir string, repos []Repo) ([]Repo, error) {
+	classified := append([]Repo(nil), repos...)
+	for i := range classified {
+		r := &classified[i]
+		if r.Origin != nil || !repoNameRe.MatchString(r.Name) || r.Name == "." || r.Name == ".." {
+			continue
+		}
+		if documentedPersonal(filepath.Join(exportDir, "repos-no-remote", r.Name)) {
+			r.Category = "Personal"
+			continue
+		}
+		return nil, fmt.Errorf("%s: нет GitHub origin и явного личного статуса; требуется классификация перед переносом", r.Name)
+	}
+	return classified, nil
 }
 
 // copyTree copies a directory with its permissions, portable (cp -a is not on Windows); symlinks are recreated.

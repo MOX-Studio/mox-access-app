@@ -285,7 +285,7 @@ func TestCloneReposRejectsHostileEntries(t *testing.T) {
 	}
 }
 
-func TestCloneReposPlacesUnownedDraftInPersonal(t *testing.T) {
+func TestCloneReposRefusesUnclassifiedDraft(t *testing.T) {
 	dir := t.TempDir()
 	src := filepath.Join(dir, "repos-no-remote", "draft")
 	if err := os.MkdirAll(src, 0o755); err != nil {
@@ -296,15 +296,37 @@ func TestCloneReposPlacesUnownedDraftInPersonal(t *testing.T) {
 	}
 	projects := filepath.Join(dir, "AI", "Project")
 	n, err := CloneRepos(dir, projects, []Repo{{Name: "draft"}}, "", func(string) {})
-	if err != nil || n != 1 {
-		t.Fatalf("n=%d err=%v", n, err)
+	if err == nil || n != 0 {
+		t.Fatalf("unclassified draft moved: n=%d err=%v", n, err)
 	}
-	if _, err := os.Stat(filepath.Join(projects, "Personal", "draft", "note.txt")); err != nil {
-		t.Fatal(err)
+	if _, err := os.Stat(filepath.Join(src, "note.txt")); err != nil {
+		t.Fatal("original draft lost", err)
 	}
 	studio := "https://github.com/MOX-Studio/example.git"
 	if repoCategory(Repo{Name: "example", Origin: &studio}) != "MOX" {
 		t.Fatal("studio origin classified as personal")
+	}
+}
+
+func TestClassifyDocumentedPersonalSandbox(t *testing.T) {
+	dir := t.TempDir()
+	src := filepath.Join(dir, "repos-no-remote", "vps-development")
+	if err := os.MkdirAll(src, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(src, "README.md"), []byte("# vps-development\n\nЛичная песочница (git локальный, без remote).\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	repos, err := ClassifyLocalOnlyRepos(dir, []Repo{{Name: "vps-development"}})
+	if err != nil || len(repos) != 1 || repos[0].Category != "Personal" {
+		t.Fatalf("documented personal sandbox: %+v %v", repos, err)
+	}
+	n, err := CloneRepos(dir, filepath.Join(dir, "AI", "Project"), repos, "", func(string) {})
+	if err != nil || n != 1 {
+		t.Fatalf("clone documented sandbox: %d %v", n, err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "AI", "Project", "Personal", "vps-development", "README.md")); err != nil {
+		t.Fatal(err)
 	}
 }
 
@@ -325,6 +347,9 @@ func TestRehomeLocalProjectsMovesAndRewritesThreads(t *testing.T) {
 		}
 	}
 	if out, err := exec.Command("git", "-C", studio, "remote", "add", "origin", "https://github.com/MOX-Studio/site.git").CombinedOutput(); err != nil {
+		t.Fatalf("origin: %s: %v", out, err)
+	}
+	if out, err := exec.Command("git", "-C", personal, "remote", "add", "origin", "https://github.com/katya/notes.git").CombinedOutput(); err != nil {
 		t.Fatalf("origin: %s: %v", out, err)
 	}
 	codexHome := filepath.Join(home, ".codex")
@@ -401,6 +426,41 @@ func TestPlanLocalProjectsRefusesDestinationConflict(t *testing.T) {
 	}
 	if _, err := os.Stat(legacy); err != nil {
 		t.Fatal("source changed during read-only plan")
+	}
+}
+
+func TestPlanLocalProjectsRefusesUnknownOwner(t *testing.T) {
+	home := t.TempDir()
+	legacy := filepath.Join(home, "MOX", "projects", "draft")
+	if err := os.MkdirAll(legacy, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if out, err := exec.Command("git", "init", "-q", legacy).CombinedOutput(); err != nil {
+		t.Fatalf("git init: %s: %v", out, err)
+	}
+	if _, err := PlanLocalProjects(home); err == nil {
+		t.Fatal("project without origin classified silently")
+	}
+	if _, err := os.Stat(legacy); err != nil {
+		t.Fatal("legacy project changed during preflight", err)
+	}
+}
+
+func TestPlanLocalProjectsAcceptsDocumentedPersonalSandbox(t *testing.T) {
+	home := t.TempDir()
+	legacy := filepath.Join(home, "MOX", "projects", "vps-development")
+	if err := os.MkdirAll(legacy, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if out, err := exec.Command("git", "init", "-q", legacy).CombinedOutput(); err != nil {
+		t.Fatalf("git init: %s: %v", out, err)
+	}
+	if err := os.WriteFile(filepath.Join(legacy, "README.md"), []byte("Личная песочница (git локальный, без remote)."), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	moves, err := PlanLocalProjects(home)
+	if err != nil || len(moves) != 1 || moves[0].Category != "Personal" {
+		t.Fatalf("documented sandbox plan: %+v %v", moves, err)
 	}
 }
 

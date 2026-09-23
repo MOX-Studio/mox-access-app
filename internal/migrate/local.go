@@ -73,7 +73,13 @@ func PlanLocalProjects(home string) ([]LocalMove, error) {
 				return nil, fmt.Errorf("%s: найден не каталог проекта; разберите вручную", filepath.Join(source.Root, entry.Name()))
 			}
 			from := filepath.Join(source.Root, entry.Name())
-			category := categoryOfLocalRepo(from)
+			category, categoryErr := categoryOfLocalRepo(from)
+			if categoryErr != nil {
+				if source.Transfer {
+					continue
+				}
+				return nil, fmt.Errorf("%s: невозможно определить личный или студийный проект: %w", from, categoryErr)
+			}
 			if source.Transfer && category != "MOX" {
 				continue
 			}
@@ -93,13 +99,27 @@ func PlanLocalProjects(home string) ([]LocalMove, error) {
 	return moves, nil
 }
 
-func categoryOfLocalRepo(dir string) string {
-	if out, err := exec.Command("git", "-C", dir, "remote", "get-url", "origin").Output(); err == nil {
-		if match := githubOwner.FindStringSubmatch(strings.TrimSpace(string(out))); len(match) == 2 && strings.EqualFold(match[1], "MOX-Studio") {
-			return "MOX"
+func categoryOfLocalRepo(dir string) (string, error) {
+	out, err := exec.Command("git", "-C", dir, "remote", "get-url", "origin").Output()
+	if err != nil {
+		if documentedPersonal(dir) {
+			return "Personal", nil
 		}
+		return "", fmt.Errorf("у репозитория нет читаемого origin; укажите GitHub remote перед переносом")
 	}
-	return "Personal"
+	match := githubOwner.FindStringSubmatch(strings.TrimSpace(string(out)))
+	if len(match) != 2 {
+		return "", fmt.Errorf("origin не содержит определяемого владельца GitHub")
+	}
+	if strings.EqualFold(match[1], "MOX-Studio") {
+		return "MOX", nil
+	}
+	return "Personal", nil
+}
+
+func documentedPersonal(dir string) bool {
+	data, err := os.ReadFile(filepath.Join(dir, "README.md"))
+	return err == nil && strings.Contains(string(data), "Личная песочница")
 }
 
 func validateLocalMove(home string, move LocalMove) error {

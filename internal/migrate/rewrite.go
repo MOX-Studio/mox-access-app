@@ -36,6 +36,9 @@ func RewritePaths(codexDir, oldHome, newHome string, repos ...Repo) (Stats, erro
 		if !repoNameRe.MatchString(r.Name) || r.Name == "." || r.Name == ".." {
 			continue
 		}
+		if repoCategory(r) == "" {
+			return Stats{}, fmt.Errorf("%s: нет GitHub origin для классификации MOX/Personal", r.Name)
+		}
 		pairs = append(pairs, [2]string{oldHome + "/Claud/projects/" + r.Name,
 			filepath.Join(newHome, "AI", "Project", repoCategory(r), r.Name)})
 	}
@@ -64,14 +67,20 @@ func rewriteMappings(codexDir string, pairs [][2]string) (Stats, error) {
 		if strings.Contains(filepath.Base(p), ".bak-") {
 			continue
 		}
+		info, err := os.Lstat(p)
+		if err != nil {
+			return st, err
+		}
+		if !info.Mode().IsRegular() {
+			return st, fmt.Errorf("%s: ожидался обычный файл Codex", p)
+		}
 		data, err := os.ReadFile(p)
 		if err != nil {
 			return st, err
 		}
 		out := rewriteTextPaths(data, pairs)
 		if !bytes.Equal(out, data) {
-			info, _ := os.Stat(p)
-			if err := os.WriteFile(p, out, info.Mode().Perm()); err != nil {
+			if err := writeFileAtomic(p, out, info.Mode().Perm()); err != nil {
 				return st, err
 			}
 			st.FilesChanged++
@@ -106,6 +115,30 @@ func rewriteMappings(codexDir string, pairs [][2]string) (Stats, error) {
 		}
 	}
 	return st, nil
+}
+
+func writeFileAtomic(path string, data []byte, mode fs.FileMode) error {
+	f, err := os.CreateTemp(filepath.Dir(path), ".mox-paths-")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(f.Name())
+	if _, err := f.Write(data); err != nil {
+		f.Close()
+		return err
+	}
+	if err := f.Chmod(mode); err != nil {
+		f.Close()
+		return err
+	}
+	if err := f.Sync(); err != nil {
+		f.Close()
+		return err
+	}
+	if err := f.Close(); err != nil {
+		return err
+	}
+	return os.Rename(f.Name(), path)
 }
 
 func databasePairs(pairs [][2]string) [][2]string {

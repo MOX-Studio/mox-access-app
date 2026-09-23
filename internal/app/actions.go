@@ -116,6 +116,10 @@ func (a *App) Migrate(ctx context.Context) (MigrateSummary, error) {
 	if err != nil {
 		return sum, fmt.Errorf("repos.json: %w", err)
 	}
+	repos, err = migrate.ClassifyLocalOnlyRepos(extracted, repos)
+	if err != nil {
+		return sum, err
+	}
 	a.log("→ клонирую проекты")
 	n, err := migrate.CloneRepos(extracted, filepath.Join(userHome, "AI", "Project"), repos, gh, a.log)
 	sum.Repos = n
