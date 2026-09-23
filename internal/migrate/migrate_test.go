@@ -277,11 +277,28 @@ func TestCloneReposRejectsHostileEntries(t *testing.T) {
 	dir := t.TempDir()
 	evil := "--upload-pack=touch /tmp/pwned"
 	n, err := CloneRepos(dir, filepath.Join(dir, "projects"), []Repo{{Name: "../escape", Origin: nil}, {Name: "ok", Origin: &evil, Pushed: true}}, "", func(string) {})
-	if err != nil || n != 0 {
+	if err == nil || n != 0 {
 		t.Fatalf("n=%d err=%v", n, err)
 	}
 	if _, err := os.Stat(filepath.Join(dir, "escape")); !os.IsNotExist(err) {
 		t.Fatal("path traversal")
+	}
+}
+
+func TestCloneReposRejectsUnsupportedOriginBeforeWriting(t *testing.T) {
+	dir := t.TempDir()
+	valid := "https://github.com/MOX-Studio/ok.git"
+	invalid := "https://example.com/wrong/repo.git"
+	projects := filepath.Join(dir, "AI", "Project")
+	repos := []Repo{{Name: "ok", Origin: &valid, Pushed: true}, {Name: "wrong", Origin: &invalid, Pushed: true}}
+	if _, err := ClassifyLocalOnlyRepos(dir, repos); err == nil {
+		t.Fatal("unsupported origin accepted by export preflight")
+	}
+	if n, err := CloneRepos(dir, projects, repos, "", func(string) {}); err == nil || n != 0 {
+		t.Fatalf("unsupported origin accepted: n=%d err=%v", n, err)
+	}
+	if _, err := os.Stat(projects); !os.IsNotExist(err) {
+		t.Fatal("preflight wrote project directories")
 	}
 }
 
