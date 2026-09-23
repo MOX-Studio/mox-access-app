@@ -34,7 +34,7 @@ func (t *Tray) ready() {
 	systray.AddSeparator()
 	t.items.github = systray.AddMenuItem("Войти в GitHub", "Свой аккаунт GitHub: проекты и набор команды")
 	t.items.migrate = systray.AddMenuItem("Перенести с сервера…", "Треды и проекты с vps6")
-	t.items.harness = systray.AddMenuItem("Обновить набор MOX", "Правила, скиллы, MCP команды")
+	t.items.harness = systray.AddMenuItem("Обновить набор MOX", "Личные и командные правила, скиллы")
 	t.items.diag = systray.AddMenuItem("Диагностика…", "Открыть страницу состояния")
 	systray.AddSeparator()
 	t.items.imp = systray.AddMenuItem("Импортировать .moxaccess…", "Файл доступа от студии")

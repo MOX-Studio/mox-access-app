@@ -124,7 +124,18 @@ func Setup(o Options) (Report, error) {
 	if err != nil {
 		return rep, fmt.Errorf("шаг «правила»: %w", err)
 	}
-	if err := ApplyAgentsBlock(filepath.Join(o.CodexHome, "AGENTS.md"), string(body), rep.Version); err != nil {
+	profile := ""
+	if path := profileFor(o.Name, rep.Root); path != "" {
+		data, err := os.ReadFile(path)
+		if os.IsNotExist(err) {
+			o.Log("→ личный шаблон появится после обновления набора MOX")
+		} else if err != nil {
+			return rep, fmt.Errorf("шаг «личные правила»: %w", err)
+		} else {
+			profile = string(data)
+		}
+	}
+	if err := ApplyAgentsBlockWithProfile(filepath.Join(o.CodexHome, "AGENTS.md"), string(body), rep.Version, profile); err != nil {
 		return rep, fmt.Errorf("шаг «правила»: %w", err)
 	}
 	if o.Name != "" || o.Email != "" {
