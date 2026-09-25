@@ -481,6 +481,34 @@ func TestPlanLocalProjectsAcceptsDocumentedPersonalSandbox(t *testing.T) {
 	}
 }
 
+// 2026-09-25: Lilya pressed «Обновить набор MOX» four times — Site, then codex, then a folder her agent had moved by
+// hand — because the check stopped at the first folder and named only the GitHub remote as the way out.
+func TestPlanLocalProjectsListsEveryBlockedFolderAtOnce(t *testing.T) {
+	home := t.TempDir()
+	projects := filepath.Join(home, "MOX", "projects")
+	for _, dir := range []string{filepath.Join(projects, "Site"), filepath.Join(projects, "codex"), filepath.Join(projects, "same"),
+		filepath.Join(home, "AI", "Project", "Personal", "same")} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if out, err := exec.Command("git", "init", "-q", filepath.Join(projects, "Site")).CombinedOutput(); err != nil {
+		t.Fatalf("git init: %s: %v", out, err)
+	}
+	if err := os.WriteFile(filepath.Join(projects, "same", "README.md"), []byte("Личная песочница"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, err := PlanLocalProjects(home)
+	if err == nil {
+		t.Fatal("blocked folders accepted")
+	}
+	for _, want := range []string{"Site", "codex", "same", "Личная песочница", "вручную"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Fatalf("error lacks %q:\n%v", want, err)
+		}
+	}
+}
+
 func TestPlanLocalProjectsMovesTransferredPersonalRepo(t *testing.T) {
 	home := t.TempDir()
 	from := filepath.Join(home, "AI", "Project", "Personal", "site")

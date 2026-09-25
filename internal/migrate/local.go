@@ -43,7 +43,9 @@ func PlanLocalProjects(home string) ([]LocalMove, error) {
 	} else if !os.IsNotExist(err) {
 		return nil, err
 	}
+	// Every folder the employee has to sort out is named at once, not one per press of «Обновить набор MOX».
 	var moves []LocalMove
+	var blocked []string
 	for _, source := range []struct {
 		Root     string
 		Transfer bool
@@ -70,7 +72,8 @@ func PlanLocalProjects(home string) ([]LocalMove, error) {
 				continue
 			}
 			if !entry.IsDir() || entry.Type()&os.ModeSymlink != 0 {
-				return nil, fmt.Errorf("%s: найден не каталог проекта; разберите вручную", filepath.Join(source.Root, entry.Name()))
+				blocked = append(blocked, filepath.Join(source.Root, entry.Name())+": найден не каталог проекта; разберите вручную")
+				continue
 			}
 			from := filepath.Join(source.Root, entry.Name())
 			category, categoryErr := categoryOfLocalRepo(from)
@@ -78,7 +81,8 @@ func PlanLocalProjects(home string) ([]LocalMove, error) {
 				if source.Transfer {
 					continue
 				}
-				return nil, fmt.Errorf("%s: невозможно определить личный или студийный проект: %w", from, categoryErr)
+				blocked = append(blocked, fmt.Sprintf("%s: невозможно определить личный или студийный проект: %v", from, categoryErr))
+				continue
 			}
 			if source.Transfer && category != "MOX" {
 				continue
@@ -89,12 +93,17 @@ func PlanLocalProjects(home string) ([]LocalMove, error) {
 				return nil, err
 			}
 			if _, err := os.Lstat(move.To); err == nil {
-				return nil, fmt.Errorf("%s: целевая папка уже существует; автоматический перенос остановлен", move.To)
+				blocked = append(blocked, move.To+": целевая папка уже существует — похоже, проект перенесли вручную; "+
+					"оставьте одну копию в "+source.Root+", приложение перенесёт её и поправит пути чатов")
+				continue
 			} else if !os.IsNotExist(err) {
 				return nil, err
 			}
 			moves = append(moves, move)
 		}
+	}
+	if len(blocked) > 0 {
+		return nil, fmt.Errorf("перенос остановлен, ничего не перемещено; разберите папки:\n— %s", strings.Join(blocked, "\n— "))
 	}
 	return moves, nil
 }
@@ -105,7 +114,8 @@ func categoryOfLocalRepo(dir string) (string, error) {
 		if documentedPersonal(dir) {
 			return "Personal", nil
 		}
-		return "", fmt.Errorf("у репозитория нет читаемого origin; укажите GitHub remote перед переносом")
+		return "", fmt.Errorf("нет GitHub-репозитория (origin): подключите репозиторий на GitHub или, если это черновики, " +
+			"добавьте в README.md строку «Личная песочница»")
 	}
 	match := githubOwner.FindStringSubmatch(strings.TrimSpace(string(out)))
 	if len(match) != 2 {
