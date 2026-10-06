@@ -37,6 +37,9 @@ func notify(title, text string) {
 	powershellAsync("Add-Type -AssemblyName PresentationFramework; [System.Windows.MessageBox]::Show(" + codex.PSQuote(text) + ", " + codex.PSQuote(title) + ") | Out-Null")
 }
 
+// alert is the same message box: on Windows every note already waits for OK.
+func alert(title, text string) { notify(title, text) }
+
 // showCode puts the one-time GitHub code in front of the employee; gh has already copied it and opened the browser.
 func showCode(code, url string) {
 	notify("MOX Access", "Код для входа в GitHub: "+code+"\n\nОн уже скопирован. В браузере открылась страница "+url+": вставьте код и войдите своим аккаунтом GitHub.")

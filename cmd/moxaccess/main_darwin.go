@@ -28,6 +28,11 @@ func showCode(code, url string) {
 	notify("MOX Access", "Код для GitHub: "+code+" (скопирован в буфер)")
 }
 
+// alert waits for OK: notifications of an unsigned application may never show, a dialog always does.
+func alert(title, text string) {
+	_ = exec.Command("osascript", "-e", fmt.Sprintf(`display dialog %q with title %q buttons {"OK"} default button 1`, text, title)).Run()
+}
+
 func notify(title, text string) {
 	_ = exec.Command("osascript", "-e", fmt.Sprintf(`display notification %q with title %q`, text, title)).Run()
 }

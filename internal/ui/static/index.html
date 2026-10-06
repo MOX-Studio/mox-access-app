@@ -20,11 +20,13 @@ ol{padding-left:20px}li{margin:4px 0}.hint{color:var(--mut);font-size:13px}
  <div class="row"><span class="k">Туннель к шлюзу</span><span id="tun">—</span></div>
  <div class="row"><span class="k">Ключ MOX</span><span id="key">—</span></div>
  <div class="row"><span class="k">Набор MOX (harness)</span><span id="har">—</span></div>
+ <div class="row"><span class="k">Приложение</span><span id="app">—</span></div>
  <div class="actions">
   <button class="primary" id="toggle">…</button>
   <button id="check">Проверить</button>
   <button id="harness">Обновить набор MOX</button>
   <button id="migrate">Перенести с сервера</button>
+  <button id="update">Обновить приложение</button>
  </div>
  <div class="hint" id="msg"></div>
 </div>
@@ -45,11 +47,12 @@ async function refresh(){try{const s=await api('/api/status');$('ver').textConte
  $('emp').textContent=s.employee||'файл .moxaccess не импортирован';
  $('tun').innerHTML=on?(s.tunnel.connected?'<span class="on">подключён</span>':'<span class="bad">нет соединения'+(s.tunnel.lastError?' — '+s.tunnel.lastError:'')+'</span>'):'—';
  $('key').textContent=s.keyText||'—';$('har').textContent=s.harness?('v'+s.harness):'не подключён';
+ $('app').innerHTML=s.update?('<span class="bad">доступна версия '+s.update+'</span>'):'v'+s.version;$('update').textContent=s.update?('Обновить приложение до '+s.update):'Обновить приложение';$('update').disabled=s.busy;
  $('toggle').textContent=on?'Выключить корпоративный Codex':'Включить корпоративный Codex';
  for(const b of ['toggle','check','harness','migrate'])$(b).disabled=s.busy||!s.employee;
  const l=await fetch('/api/log');$('log').textContent=await l.text();}catch(e){$('msg').textContent=e.message;}}
 async function act(p,label){$('msg').textContent=label+'…';try{const j=await api(p,'POST');$('msg').textContent=j.message||'готово';}catch(e){$('msg').textContent='Ошибка: '+e.message;}refresh();}
 $('toggle').onclick=async()=>{const s=await api('/api/status');act(s.mode==='corporate'?'/api/disable':'/api/enable',s.mode==='corporate'?'Выключаю':'Включаю');};
-$('check').onclick=()=>act('/api/check','Проверяю');$('harness').onclick=()=>act('/api/harness','Обновляю набор');$('migrate').onclick=()=>{if(confirm('Codex будет закрыт на время переноса. Продолжить?'))act('/api/migrate','Переношу');};
+$('check').onclick=()=>act('/api/check','Проверяю');$('harness').onclick=()=>act('/api/harness','Обновляю набор');$('update').onclick=()=>act('/api/update','Обновляю приложение');$('migrate').onclick=()=>{if(confirm('Codex будет закрыт на время переноса. Продолжить?'))act('/api/migrate','Переношу');};
 refresh();setInterval(refresh,5000);
 </script></body></html>
