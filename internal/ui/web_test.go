@@ -12,13 +12,15 @@ import (
 
 type noOps struct{ home string }
 
-func (n noOps) Home() string                 { return n.home }
-func (noOps) TrustCert(string) error         { return nil }
-func (noOps) SetEnv(map[string]string) error { return nil }
-func (noOps) UnsetEnv([]string) error        { return nil }
-func (noOps) QuitCodex() error               { return nil }
-func (noOps) LaunchCodex() error             { return nil }
-func (noOps) RestartHint() string            { return "" }
+func (n noOps) Home() string                      { return n.home }
+func (noOps) TrustCert(string) error              { return nil }
+func (noOps) SetEnv(map[string]string) error      { return nil }
+func (noOps) UnsetEnv([]string) error             { return nil }
+func (noOps) QuitCodex() error                    { return nil }
+func (noOps) LaunchCodex() error                  { return nil }
+func (noOps) RestartHint() string                 { return "" }
+func (noOps) CodexRunning() bool                  { return false }
+func (noOps) SessionReady(map[string]string) bool { return true }
 
 func TestStatusAndPage(t *testing.T) {
 	dir := t.TempDir()

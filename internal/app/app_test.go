@@ -43,10 +43,11 @@ func (r *recorder) String() string {
 
 // fakeOps records the order of OS-level steps instead of touching the machine.
 type fakeOps struct {
-	home    string
-	steps   []string
-	failAt  string
-	running bool
+	home         string
+	steps        []string
+	failAt       string
+	running      bool
+	sessionStale bool
 }
 
 func (f *fakeOps) note(s string) error {
@@ -63,6 +64,10 @@ func (f *fakeOps) UnsetEnv([]string) error        { return f.note("env-") }
 func (f *fakeOps) QuitCodex() error               { f.running = false; return f.note("quit") }
 func (f *fakeOps) LaunchCodex() error             { f.running = true; return f.note("launch") }
 func (f *fakeOps) RestartHint() string            { return "" }
+func (f *fakeOps) CodexRunning() bool             { return f.running }
+func (f *fakeOps) SessionReady(map[string]string) bool {
+	return !f.sessionStale
+}
 
 // gateway is an https server with a self-signed localhost leaf, answering /mox/export like the real one.
 func gateway(t *testing.T) (*httptest.Server, string) {
@@ -327,5 +332,49 @@ func TestEnableStopsWhenLegacyRemovalFails(t *testing.T) {
 	auth, _ := os.ReadFile(filepath.Join(ops.home, "auth.json"))
 	if string(auth) != `{"tokens":{"access_token":"personal.token.x"}}` || a.Status().Mode != state.ModePersonal {
 		t.Fatal("personal Codex touched")
+	}
+}
+
+// After login ChatGPT may have started before the tunnel: it is restarted only when it runs and can be reopened.
+func TestRestartCodexAfterLogin(t *testing.T) {
+	dir := t.TempDir()
+	gw, certPEM := gateway(t)
+	defer gw.Close()
+	privPEM, userPub := tunneltest.NewUserKey(t)
+	relay := tunneltest.New(t, userPub, gw.Listener.Addr().String())
+	defer relay.Stop()
+	ops := &fakeOps{home: filepath.Join(dir, ".codex")}
+	os.MkdirAll(ops.home, 0o700)
+	a, err := New(filepath.Join(dir, "app"), ops, func(string) {})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := a.Import(testBundle(t, dir, relay.Port(), relay.HostKeyLine(), privPEM, certPEM, freePort(t))); err != nil {
+		t.Fatal(err)
+	}
+	ops.steps = nil
+	if err := a.RestartCodexAfterLogin(); err != nil || len(ops.steps) != 0 {
+		t.Fatalf("personal mode must not touch Codex: %v %v", err, ops.steps)
+	}
+	if err := a.Enable(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	defer a.Disable(context.Background())
+	for _, c := range []struct {
+		name           string
+		running, stale bool
+		want           string
+	}{
+		{"not running", false, false, ""},
+		{"running, cannot reopen", true, true, ""},
+		{"running, can reopen", true, false, "quit launch"},
+	} {
+		ops.steps, ops.running, ops.sessionStale = nil, c.running, c.stale
+		if err := a.RestartCodexAfterLogin(); err != nil {
+			t.Fatalf("%s: %v", c.name, err)
+		}
+		if got := strings.Join(ops.steps, " "); got != c.want {
+			t.Fatalf("%s: steps %q, want %q", c.name, got, c.want)
+		}
 	}
 }

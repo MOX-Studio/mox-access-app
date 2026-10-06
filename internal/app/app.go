@@ -32,6 +32,9 @@ type CodexOps interface {
 	UnsetEnv(keys []string) error
 	QuitCodex() error
 	LaunchCodex() error
+	CodexRunning() bool
+	// SessionReady: LaunchCodex would start Codex with these variables (Windows: the logon session already carries them).
+	SessionReady(vars map[string]string) bool
 	RestartHint() string // what the employee must do after a restart when the platform cannot apply it itself (Windows: log out and in)
 }
 
@@ -342,6 +345,29 @@ func (a *App) stopTunnel() {
 	if tn != nil {
 		tn.Stop()
 	}
+}
+
+// RestartCodexAfterLogin fixes the start-up race: at login ChatGPT can come up before the tunnel, find no gateway and
+// stay on the sign-in screen. Once the tunnel is up the application restarts it — only when it is running and can surely
+// be opened again; otherwise it is left alone.
+func (a *App) RestartCodexAfterLogin() error {
+	b := a.Bundle()
+	if b == nil || a.Status().Mode != state.ModeCorporate || !a.Status().Tunnel.Connected {
+		return nil
+	}
+	if !a.ops.CodexRunning() {
+		a.log("после входа: ChatGPT не запущен — не трогаю")
+		return nil
+	}
+	if !a.ops.SessionReady(b.EnvVars(a.pemPath())) {
+		a.log("после входа: ChatGPT запущен, но переоткрыть его с рабочим доступом не выйдет — не трогаю")
+		return nil
+	}
+	a.log("→ после входа: перезапускаю ChatGPT, он открылся раньше туннеля")
+	if err := a.ops.QuitCodex(); err != nil {
+		return err
+	}
+	return a.ops.LaunchCodex()
 }
 
 // Resume re-establishes the tunnel after the application itself restarted while corporate mode was on.
