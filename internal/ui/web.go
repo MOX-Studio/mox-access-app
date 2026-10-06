@@ -22,6 +22,7 @@ type Web struct {
 	App     *app.App
 	Version string
 	LogPath string
+	Updates *Updates
 	mu      sync.Mutex
 	busy    bool
 	srv     *http.Server
@@ -64,7 +65,7 @@ func (w *Web) handler() http.Handler {
 		w.mu.Lock()
 		busy := w.busy
 		w.mu.Unlock()
-		writeJSON(rw, 200, map[string]any{"version": w.Version, "mode": s.Mode, "employee": s.Employee, "keyText": s.KeyText, "harness": s.Harness, "busy": busy,
+		writeJSON(rw, 200, map[string]any{"version": w.Version, "mode": s.Mode, "employee": s.Employee, "keyText": s.KeyText, "harness": s.Harness, "busy": busy, "update": w.Updates.Available(),
 			"tunnel": map[string]any{"connected": s.Tunnel.Connected, "reconnects": s.Tunnel.Reconnects, "lastError": s.Tunnel.LastError}})
 	})
 	mux.HandleFunc("/api/log", func(rw http.ResponseWriter, r *http.Request) {
@@ -123,6 +124,9 @@ func (w *Web) handler() http.Handler {
 			return "", err
 		}
 		return "набор MOX " + rep.Version + " подключён — перезапустите Codex", nil
+	})
+	action("update", func(ctx context.Context) (string, error) {
+		return w.Updates.Install(ctx)
 	})
 	action("migrate", func(ctx context.Context) (string, error) {
 		sum, err := w.App.Migrate(context.Background())

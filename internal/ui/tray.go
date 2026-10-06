@@ -2,11 +2,13 @@ package ui
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"time"
 
 	"fyne.io/systray"
 
+	"github.com/MOX-Studio/mox-access-app/internal/selfupdate"
 	"github.com/MOX-Studio/mox-access-app/internal/state"
 )
 
@@ -15,12 +17,13 @@ import (
 
 // Tray runs the menu until Quit; it must be called from the main goroutine (systray.Run).
 type Tray struct {
-	Web    *Web
-	Log    func(string)
-	Notify func(title, text string)
-	OnQuit func()
-	items  struct{ toggle, tunnel, github, migrate, harness, diag, imp, quit *systray.MenuItem }
-	icon   *byte // first byte of the icon currently shown, so refresh sets the image only when the state changes
+	Web     *Web
+	Log     func(string)
+	Notify  func(title, text string)
+	OnQuit  func()
+	Updates *Updates
+	items   struct{ toggle, tunnel, github, migrate, harness, update, diag, imp, quit *systray.MenuItem }
+	icon    *byte // first byte of the icon currently shown, so refresh sets the image only when the state changes
 }
 
 func (t *Tray) Run() { systray.Run(t.ready, t.exit) }
@@ -35,6 +38,7 @@ func (t *Tray) ready() {
 	t.items.github = systray.AddMenuItem("Войти в GitHub", "Свой аккаунт GitHub: проекты и набор команды")
 	t.items.migrate = systray.AddMenuItem("Перенести с сервера…", "Треды и проекты с vps6")
 	t.items.harness = systray.AddMenuItem("Обновить набор MOX", "Личные и командные правила, скиллы")
+	t.items.update = systray.AddMenuItem("Обновить приложение", "Проверить и установить новую версию MOX Access")
 	t.items.diag = systray.AddMenuItem("Диагностика…", "Открыть страницу состояния")
 	systray.AddSeparator()
 	t.items.imp = systray.AddMenuItem("Импортировать .moxaccess…", "Файл доступа от студии")
@@ -64,6 +68,11 @@ func (t *Tray) refresh() {
 	} else {
 		t.items.toggle.SetTitle("Корпоративный Codex: ВЫКЛ — включить")
 		t.items.tunnel.SetTitle("Туннель: —")
+	}
+	if v := t.Updates.Available(); v != "" {
+		t.items.update.SetTitle("Обновить приложение до " + v)
+	} else {
+		t.items.update.SetTitle("Обновить приложение")
 	}
 	if t.icon != &icon[0] {
 		systray.SetTemplateIcon(icon, iconColor)
@@ -118,6 +127,20 @@ func (t *Tray) loop() {
 			go t.run("Перенос с сервера", func() error { _, err := t.Web.App.Migrate(context.Background()); return err })
 		case <-t.items.harness.ClickedCh:
 			go t.run("Обновление набора MOX", func() error { _, err := t.Web.App.Harness(context.Background(), true); return err })
+		case <-t.items.update.ClickedCh:
+			go func() {
+				msg, err := t.Updates.Install(context.Background())
+				if err != nil {
+					t.Log("✗ Обновление приложения: " + err.Error())
+					if !errors.Is(err, selfupdate.ErrNotStarted) {
+						t.Notify("MOX Access", "Обновление приложения: "+err.Error())
+					}
+					return
+				}
+				if msg != "" && t.Updates.Available() == "" {
+					t.Notify("MOX Access", "Обновление приложения: "+msg)
+				}
+			}()
 		case <-t.items.diag.ClickedCh:
 			openURL(t.Web.URL())
 		case <-t.items.imp.ClickedCh:
