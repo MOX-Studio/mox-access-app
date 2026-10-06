@@ -12,6 +12,9 @@ import (
 	"github.com/MOX-Studio/mox-access-app/internal/codex"
 )
 
+// trayPlace says where the ring lives, for messages.
+const trayPlace = "в строке меню вверху экрана"
+
 func platformOps() app.CodexOps { return codex.Darwin{} }
 
 // appPaths: the application directory and its log, in the places macOS keeps them.

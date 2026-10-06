@@ -4,6 +4,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -15,7 +16,9 @@ import (
 	"fyne.io/systray"
 
 	"github.com/MOX-Studio/mox-access-app/internal/app"
+	"github.com/MOX-Studio/mox-access-app/internal/instance"
 	"github.com/MOX-Studio/mox-access-app/internal/selfupdate"
+	"github.com/MOX-Studio/mox-access-app/internal/tunnel"
 	"github.com/MOX-Studio/mox-access-app/internal/ui"
 )
 
@@ -61,6 +64,19 @@ func main() {
 		logf("обновление до " + Version + " завершено")
 		notify("MOX Access", "MOX Access обновлён до "+Version+".")
 	}
+	// One copy per user. After an update the previous one may still be releasing the lock for a moment.
+	err = instance.Acquire(dir)
+	for tries := 0; errors.Is(err, instance.ErrRunning) && *waitPid > 0 && tries < 25; tries++ {
+		time.Sleep(200 * time.Millisecond)
+		err = instance.Acquire(dir)
+	}
+	if errors.Is(err, instance.ErrRunning) {
+		logf("уже запущена другая копия — выхожу")
+		alert("MOX Access", "MOX Access уже запущен: кольцо "+trayPlace+".\n\nЧтобы перезапустить, нажми в кольце «Выйти» и запусти MOX Access снова.")
+		return
+	} else if err != nil {
+		logf("блокировка второй копии: " + err.Error())
+	}
 	if !*noAutostart {
 		if err := installAutostart(); err != nil {
 			logf("автозапуск: " + err.Error())
@@ -68,6 +84,10 @@ func main() {
 	}
 	if err := a.Resume(context.Background()); err != nil {
 		logf("восстановление туннеля: " + err.Error())
+		if errors.Is(err, tunnel.ErrPortBusy) {
+			// A copy from before the lock existed (≤0.5.3) still holds the tunnel port.
+			alert("MOX Access", "Туннель не поднялся: порт занят. Скорее всего, рядом работает старая копия MOX Access "+trayPlace+".\n\nВыйди из всех колец MOX Access («Выйти») и запусти MOX Access один раз.")
+		}
 	}
 	// The new copy keeps this run's options; --wait-pid tells it to let this process go first.
 	relaunch := []string{"--wait-pid", strconv.Itoa(os.Getpid())}

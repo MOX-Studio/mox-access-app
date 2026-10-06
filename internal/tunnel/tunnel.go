@@ -20,6 +20,9 @@ import (
 // keepaliveEvery and keepaliveWait pace the liveness check; tests shorten them.
 var keepaliveEvery, keepaliveWait = 5 * time.Second, 5 * time.Second
 
+// ErrPortBusy: the local port is taken — in practice by another MOX Access still running.
+var ErrPortBusy = errors.New("возможно, запущена вторая копия MOX Access")
+
 type Config struct {
 	User, Host string
 	Port       int
@@ -112,7 +115,7 @@ func (t *Tunnel) Start(ctx context.Context) error {
 	port := strconv.Itoa(t.cfg.LocalPort)
 	ln4, err := net.Listen("tcp4", "127.0.0.1:"+port)
 	if err != nil {
-		return fmt.Errorf("порт %s занят другой программой: %w", port, err)
+		return fmt.Errorf("порт %s занят другой программой (%v): %w", port, err, ErrPortBusy)
 	}
 	t.listeners = []net.Listener{ln4}
 	if ln6, err := net.Listen("tcp6", "[::1]:"+port); err == nil {
