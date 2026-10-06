@@ -114,3 +114,33 @@ func TestBusyPortIsNamed(t *testing.T) {
 		t.Fatalf("expected busy-port error, got %v", err)
 	}
 }
+
+// A mobile link that goes silent keeps the TCP session open, so only an unanswered keepalive reveals it; the tunnel
+// must give up on it and reconnect instead of waiting for a reply that never comes.
+func TestSilentRelayIsDropped(t *testing.T) {
+	keepaliveEvery, keepaliveWait = 100*time.Millisecond, 100*time.Millisecond
+	defer func() { keepaliveEvery, keepaliveWait = 5*time.Second, 5*time.Second }()
+	privPEM, userPub := tunneltest.NewUserKey(t)
+	hello := helloService(t)
+	defer hello.Close()
+	srv := tunneltest.New(t, userPub, hello.Addr().String())
+	defer srv.Stop()
+	local := freePort(t)
+	tn := New(Config{User: "moxrelay", Host: "127.0.0.1", Port: srv.Port(), HostKey: srv.HostKeyLine(), PrivateKey: privPEM, LocalPort: local, Remote: "127.0.0.1:1"})
+	if err := tn.Start(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	defer tn.Stop()
+	srv.Stall.Store(true)
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) && tn.Status().Reconnects < 1 {
+		time.Sleep(50 * time.Millisecond)
+	}
+	if st := tn.Status(); st.Reconnects < 1 {
+		t.Fatalf("silent relay was not dropped: %+v", st)
+	}
+	srv.Stall.Store(false)
+	if got := readHello(local); got != "hello" {
+		t.Fatalf("through tunnel after reconnect: %q", got)
+	}
+}

@@ -17,6 +17,9 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
+// keepaliveEvery and keepaliveWait pace the liveness check; tests shorten them.
+var keepaliveEvery, keepaliveWait = 5 * time.Second, 5 * time.Second
+
 type Config struct {
 	User, Host string
 	Port       int
@@ -172,17 +175,20 @@ func (t *Tunnel) forward(ctx context.Context, conn net.Conn) {
 
 // keep sends keepalives every 5 s; two misses (ServerAliveInterval=5/CountMax=2 of the old agent) or a closed
 // connection trigger a reconnect with backoff 1→30 s, like KeepAlive under launchd but without the throttle.
+// A reply that does not come within keepaliveWait is a miss: a silent link keeps TCP open and would never answer.
 func (t *Tunnel) keep(ctx context.Context) {
 	defer close(t.done)
 	backoff := time.Second
 	misses := 0
-	ticker := time.NewTicker(5 * time.Second)
+	ticker := time.NewTicker(keepaliveEvery)
 	defer ticker.Stop()
+	var closed chan error // one watcher per connection, not one per tick
 	for {
 		t.mu.Lock()
 		client := t.client
 		t.mu.Unlock()
 		if client == nil {
+			closed = nil
 			c, err := t.dial(t.addr())
 			if err != nil {
 				t.setError(err)
@@ -208,8 +214,10 @@ func (t *Tunnel) keep(ctx context.Context) {
 			misses = 0
 			continue
 		}
-		closed := make(chan error, 1)
-		go func() { closed <- client.Wait() }()
+		if closed == nil {
+			closed = make(chan error, 1)
+			go func(done chan<- error) { done <- client.Wait() }(closed)
+		}
 		select {
 		case <-ctx.Done():
 			return
@@ -217,17 +225,30 @@ func (t *Tunnel) keep(ctx context.Context) {
 			t.drop(client, err)
 			misses = 0
 		case <-ticker.C:
-			_, _, err := client.SendRequest("keepalive@openssh.com", true, nil)
-			if err != nil {
-				misses++
-			} else {
+			if answered(ctx, client) {
 				misses = 0
+			} else {
+				misses++
 			}
 			if misses >= 2 {
 				t.drop(client, errors.New("релей не отвечает"))
 				misses = 0
 			}
 		}
+	}
+}
+
+// answered sends one keepalive and waits at most keepaliveWait; the request left pending ends when drop closes the client.
+func answered(ctx context.Context, client *ssh.Client) bool {
+	reply := make(chan error, 1)
+	go func() { _, _, err := client.SendRequest("keepalive@openssh.com", true, nil); reply <- err }()
+	select {
+	case err := <-reply:
+		return err == nil
+	case <-time.After(keepaliveWait):
+		return false
+	case <-ctx.Done():
+		return true
 	}
 }
 
