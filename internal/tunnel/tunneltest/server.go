@@ -26,6 +26,7 @@ type Server struct {
 	userKey  ssh.PublicKey
 	target   atomic.Value // string
 	Accepted atomic.Int32
+	Stall    atomic.Bool // swallow global requests unanswered: a link gone silent while the TCP session stays open
 	mu       sync.Mutex
 	conns    []net.Conn
 }
@@ -91,7 +92,13 @@ func (s *Server) serve(nc net.Conn, cfg *ssh.ServerConfig) {
 		return
 	}
 	defer conn.Close()
-	go ssh.DiscardRequests(reqs)
+	go func() {
+		for req := range reqs {
+			if !s.Stall.Load() && req.WantReply {
+				req.Reply(false, nil)
+			}
+		}
+	}()
 	for ch := range chans {
 		if ch.ChannelType() != "direct-tcpip" {
 			ch.Reject(ssh.UnknownChannelType, "no")
