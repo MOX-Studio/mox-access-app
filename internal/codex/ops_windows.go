@@ -135,6 +135,24 @@ func (*Windows) QuitCodex() error {
 	return nil
 }
 
+// CodexRunning reports any process of the OpenAI.Codex package.
+func (*Windows) CodexRunning() bool {
+	out, _ := powershell("(Get-Process | Where-Object { $_.Path -like '*\\WindowsApps\\OpenAI.Codex_*' } | Measure-Object).Count")
+	n := strings.TrimSpace(out)
+	return n != "" && n != "0"
+}
+
+// SessionReady compares the logon session with the variables, as SetEnv does, and remembers the answer for LaunchCodex.
+func (w *Windows) SessionReady(vars map[string]string) bool {
+	w.sessionCurrent = true
+	for k, v := range vars {
+		if k != "no_proxy" && os.Getenv(k) != v {
+			w.sessionCurrent = false
+		}
+	}
+	return w.sessionCurrent
+}
+
 // LaunchCodex starts the packaged application only when the logon session already has the right environment: started
 // otherwise it would carry the environment of the logon and show the previous account (the Windows lesson of
 // 2026-09-18). Then the employee logs out and in; RestartHint says so.

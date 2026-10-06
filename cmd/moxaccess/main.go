@@ -82,13 +82,32 @@ func main() {
 			logf("автозапуск: " + err.Error())
 		}
 	}
-	if err := a.Resume(context.Background()); err != nil {
-		logf("восстановление туннеля: " + err.Error())
-		if errors.Is(err, tunnel.ErrPortBusy) {
-			// A copy from before the lock existed (≤0.5.3) still holds the tunnel port.
-			alert("MOX Access", "Туннель не поднялся: порт занят. Скорее всего, рядом работает старая копия MOX Access "+trayPlace+".\n\nВыйди из всех колец MOX Access («Выйти») и запусти MOX Access один раз.")
+	// The tunnel comes back in the background: at login the network may not be up yet, so a failed attempt is retried.
+	// Started by autostart (login), the application then restarts ChatGPT if it opened before the tunnel.
+	atLogin := *noAutostart && *waitPid == 0
+	go func() {
+		for delay := 5 * time.Second; ; {
+			err := a.Resume(context.Background())
+			if err == nil {
+				break
+			}
+			logf("восстановление туннеля: " + err.Error())
+			if errors.Is(err, tunnel.ErrPortBusy) {
+				// A copy from before the lock existed (≤0.5.3) still holds the tunnel port.
+				alert("MOX Access", "Туннель не поднялся: порт занят. Скорее всего, рядом работает старая копия MOX Access "+trayPlace+".\n\nВыйди из всех колец MOX Access («Выйти») и запусти MOX Access один раз.")
+				return
+			}
+			time.Sleep(delay)
+			if delay < time.Minute {
+				delay *= 2
+			}
 		}
-	}
+		if atLogin {
+			if err := a.RestartCodexAfterLogin(); err != nil {
+				logf("✗ перезапуск ChatGPT после входа: " + err.Error())
+			}
+		}
+	}()
 	// The new copy keeps this run's options; --wait-pid tells it to let this process go first.
 	relaunch := []string{"--wait-pid", strconv.Itoa(os.Getpid())}
 	if *noAutostart {
