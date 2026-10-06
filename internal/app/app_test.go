@@ -18,6 +18,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -26,6 +27,19 @@ import (
 	"github.com/MOX-Studio/mox-access-app/internal/tunnel/tunneltest"
 	"golang.org/x/crypto/ssh"
 )
+
+// recorder collects log lines; the tunnel logs from its own goroutine while the test reads.
+type recorder struct {
+	mu    sync.Mutex
+	lines []string
+}
+
+func (r *recorder) log(s string) { r.mu.Lock(); r.lines = append(r.lines, s); r.mu.Unlock() }
+func (r *recorder) String() string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return strings.Join(r.lines, "\n")
+}
 
 // fakeOps records the order of OS-level steps instead of touching the machine.
 type fakeOps struct {
@@ -201,8 +215,8 @@ func TestEnableRollsBackWhenTunnelFails(t *testing.T) {
 	os.MkdirAll(ops.home, 0o700)
 	os.WriteFile(filepath.Join(ops.home, "auth.json"), []byte(`{"tokens":{"access_token":"personal.token.x"}}`), 0o600)
 	os.WriteFile(filepath.Join(ops.home, "config.toml"), []byte("model = \"gpt-5\"\n"), 0o600)
-	var logs []string
-	a, _ := New(filepath.Join(dir, "app"), ops, func(s string) { logs = append(logs, s) })
+	logs := &recorder{}
+	a, _ := New(filepath.Join(dir, "app"), ops, logs.log)
 	a.Import(testBundle(t, dir, relay.Port(), wrongHostKey, privPEM, certPEM, freePort(t)))
 	err := a.Enable(context.Background())
 	if err == nil || !strings.Contains(err.Error(), "туннель") || !strings.Contains(err.Error(), "отменены") {
@@ -225,7 +239,7 @@ func TestEnableRollsBackWhenTunnelFails(t *testing.T) {
 	if st := a.Status(); st.Mode != state.ModePersonal || st.Tunnel.Connected {
 		t.Fatalf("status after failed enable: %+v", st)
 	}
-	if !strings.Contains(strings.Join(logs, "\n"), "откат") {
+	if !strings.Contains(logs.String(), "откат") {
 		t.Fatalf("rollback must be logged: %v", logs)
 	}
 }
@@ -269,8 +283,8 @@ func TestEnableRemovesLegacyInstallerBeforeTakingThePort(t *testing.T) {
 	defer relay.Stop()
 	ops := &legacyOps{fakeOps: &fakeOps{home: filepath.Join(dir, ".codex")}, found: []string{"задача планировщика", "туннель"}}
 	os.MkdirAll(ops.home, 0o700)
-	var logs []string
-	a, err := New(filepath.Join(dir, "app"), ops, func(s string) { logs = append(logs, s) })
+	logs := &recorder{}
+	a, err := New(filepath.Join(dir, "app"), ops, logs.log)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -283,8 +297,8 @@ func TestEnableRemovesLegacyInstallerBeforeTakingThePort(t *testing.T) {
 	if got := strings.Join(ops.steps, " "); got != "cert legacy env+ quit launch" {
 		t.Fatalf("enable order: %s", got)
 	}
-	if !strings.Contains(strings.Join(logs, "\n"), "прежний установщик снят: задача планировщика, туннель") {
-		t.Fatalf("log:\n%s", strings.Join(logs, "\n"))
+	if !strings.Contains(logs.String(), "прежний установщик снят: задача планировщика, туннель") {
+		t.Fatalf("log:\n%s", logs)
 	}
 }
 

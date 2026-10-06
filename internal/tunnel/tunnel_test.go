@@ -6,11 +6,25 @@ import (
 	"net"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/MOX-Studio/mox-access-app/internal/tunnel/tunneltest"
 )
+
+// recorder collects log lines; the tunnel logs from its own goroutine while the test reads.
+type recorder struct {
+	mu    sync.Mutex
+	lines []string
+}
+
+func (r *recorder) log(s string) { r.mu.Lock(); r.lines = append(r.lines, s); r.mu.Unlock() }
+func (r *recorder) String() string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return strings.Join(r.lines, "\n")
+}
 
 func helloService(t *testing.T) net.Listener {
 	t.Helper()
@@ -55,8 +69,8 @@ func TestForwardReconnectAndStop(t *testing.T) {
 	srv := tunneltest.New(t, userPub, hello.Addr().String())
 	defer srv.Stop()
 	local := freePort(t)
-	var logs []string
-	tn := New(Config{User: "moxrelay", Host: "127.0.0.1", Port: srv.Port(), HostKey: srv.HostKeyLine(), PrivateKey: privPEM, LocalPort: local, Remote: "127.0.0.1:1", Log: func(s string) { logs = append(logs, s) }})
+	logs := &recorder{}
+	tn := New(Config{User: "moxrelay", Host: "127.0.0.1", Port: srv.Port(), HostKey: srv.HostKeyLine(), PrivateKey: privPEM, LocalPort: local, Remote: "127.0.0.1:1", Log: logs.log})
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	if err := tn.Start(ctx); err != nil {
