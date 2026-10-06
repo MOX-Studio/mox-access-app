@@ -12,6 +12,9 @@ import (
 	"github.com/MOX-Studio/mox-access-app/internal/codex"
 )
 
+// trayPlace says where the ring lives, for messages.
+const trayPlace = "в трее у часов (под стрелкой ^)"
+
 func platformOps() app.CodexOps { return &codex.Windows{} }
 
 // appPaths: %LOCALAPPDATA%\MOX Access holds the bundle, the state and the log — the folder the installer of 2026-09-18 used.
