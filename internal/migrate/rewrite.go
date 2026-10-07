@@ -10,6 +10,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -79,6 +80,11 @@ func rewriteMappings(codexDir string, pairs [][2]string) (Stats, error) {
 			return st, err
 		}
 		out := rewriteTextPaths(data, pairs)
+		if filepath.Base(p) == "config.toml" && !bytes.Equal(out, data) {
+			// Codex may already hold the new folder: [projects."<old>"] rewritten next to an existing [projects."<new>"]
+			// is a duplicate table, and Codex refuses the whole file (Lilya, 2026-10-07, 0.5.10).
+			out = dedupeTOMLTables(out)
+		}
 		if !bytes.Equal(out, data) {
 			if err := writeFileAtomic(p, out, info.Mode().Perm()); err != nil {
 				return st, err
@@ -137,6 +143,68 @@ func rewriteMappings(codexDir string, pairs [][2]string) (Stats, error) {
 		}
 	}
 	return st, nil
+}
+
+// tomlTable is a [table] header line (an optional comment after it).
+var tomlTable = regexp.MustCompile(`^\[([^\[\]=]+)\]\s*(#.*)?$`)
+
+// dedupeTOMLTables drops a [table] that repeats an earlier header, with its keys; the first one wins. Arrays of tables
+// ([[...]]) repeat by design and are kept. Lines inside a multi-line array value are never headers.
+func dedupeTOMLTables(data []byte) []byte {
+	var out []byte
+	seen := map[string]bool{}
+	skip := false
+	depth := 0
+	for _, line := range bytes.SplitAfter(data, []byte("\n")) {
+		t := strings.TrimSpace(string(line))
+		if depth == 0 {
+			switch {
+			case strings.HasPrefix(t, "[["):
+				skip = false
+			case tomlTable.MatchString(t):
+				key := strings.ReplaceAll(tomlTable.FindStringSubmatch(t)[1], " ", "")
+				skip = seen[key]
+				seen[key] = true
+			default:
+				depth += bracketDelta(t)
+			}
+		} else {
+			depth += bracketDelta(t)
+		}
+		if depth < 0 {
+			depth = 0
+		}
+		if !skip {
+			out = append(out, line...)
+		}
+	}
+	return out
+}
+
+// bracketDelta counts [ minus ] outside strings and comments of one TOML line.
+func bracketDelta(line string) int {
+	d := 0
+	var quote byte
+	for i := 0; i < len(line); i++ {
+		c := line[i]
+		switch {
+		case quote != 0:
+			if c == '\\' && quote == '"' {
+				i++
+			} else if c == quote {
+				quote = 0
+			}
+		case c == '"' || c == '\'':
+			quote = c
+		case c == '#':
+			return d
+		case c == '[':
+			d++
+		case c == ']':
+			d--
+		}
+	}
+	return d
 }
 
 // hasColumn tells whether table has column; older Codex databases lack some of them.

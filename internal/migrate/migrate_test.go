@@ -635,3 +635,25 @@ func TestStaleProjectRoots(t *testing.T) {
 		t.Fatalf("after repair: %v", pairs)
 	}
 }
+
+// A config that already knows the new folder keeps one [projects."<new>"] table after the rewrite, arrays untouched.
+func TestRewriteLocalPathsMergesDuplicateConfigProjects(t *testing.T) {
+	home := t.TempDir()
+	codexHome := filepath.Join(home, ".codex")
+	os.MkdirAll(codexHome, 0o755)
+	old := filepath.Join(home, "MOX", "projects", "Site")
+	newPath := filepath.Join(home, "AI", "Project", "Personal", "Site")
+	config := "model = \"x\"\n\n[projects.\"" + old + "\"]\ntrust_level = \"trusted\"\n\n[[hooks]]\nname = \"a\"\n\n[projects.\"" + newPath + "\"]\ntrust_level = \"trusted\"\n\n[[hooks]]\nname = \"b\"\nargs = [\n  [\"x\"]\n]\n[mcp]\nk = [\n  [\"x\"]\n]\n"
+	os.WriteFile(filepath.Join(codexHome, "config.toml"), []byte(config), 0o600)
+	if _, err := RewriteLocalPaths(codexHome, [][2]string{{old, newPath}}); err != nil {
+		t.Fatal(err)
+	}
+	data, _ := os.ReadFile(filepath.Join(codexHome, "config.toml"))
+	got := string(data)
+	if strings.Count(got, `[projects."`+newPath+`"]`) != 1 || strings.Contains(got, old+`"`) {
+		t.Fatalf("config:\n%s", got)
+	}
+	if strings.Count(got, "[[hooks]]") != 2 || !strings.Contains(got, `name = "b"`) || !strings.Contains(got, `model = "x"`) || strings.Count(got, `["x"]`) != 2 {
+		t.Fatalf("arrays or root keys lost:\n%s", got)
+	}
+}
