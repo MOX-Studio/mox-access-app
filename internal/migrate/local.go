@@ -1,6 +1,7 @@
 package migrate
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -226,4 +227,79 @@ func RehomeLocalProjects(home, codexHome string, log func(string)) (int, error) 
 	_ = os.Remove(filepath.Join(home, "MOX", "projects"))
 	_ = os.Remove(filepath.Join(home, "MOX"))
 	return len(moves), nil
+}
+
+// StaleProjectRoots is read-only. It finds folders Codex still keeps on ~/MOX/projects/<name> — a sidebar project or a
+// thread — after the project moved to ~/AI/Project/{MOX,Personal}/<name>: the move of 2026-09 rewrote threads but not
+// projects, so every new thread in such a project started in the old folder (Lilya, 2026-10-07). A pair is returned
+// when the new folder exists and the old one is gone or empty; an old folder with files in it is reported in blocked
+// and left for a person to sort out.
+func StaleProjectRoots(home, codexHome string) (pairs [][2]string, blocked []string, err error) {
+	dbPath := filepath.Join(codexHome, "state_5.sqlite")
+	if _, err := os.Stat(dbPath); err != nil {
+		return nil, nil, nil
+	}
+	db, err := sql.Open("sqlite", "file:"+dbPath+"?mode=ro")
+	if err != nil {
+		return nil, nil, err
+	}
+	defer db.Close()
+	legacy := filepath.Join(home, "MOX", "projects")
+	var paths []string
+	for _, q := range []struct{ table, column string }{{"project_roots", "path"}, {"threads", "cwd"}} {
+		if !hasColumn(db, q.table, q.column) {
+			continue
+		}
+		rows, err := db.Query(`SELECT DISTINCT "`+q.column+`" FROM "`+q.table+`" WHERE substr("`+q.column+`", 1, length(?) + 1) = ?`, legacy, legacy+string(filepath.Separator))
+		if err != nil {
+			return nil, nil, err
+		}
+		for rows.Next() {
+			var p string
+			if err := rows.Scan(&p); err == nil {
+				paths = append(paths, p)
+			}
+		}
+		rows.Close()
+	}
+	seen := map[string]bool{}
+	for _, p := range paths {
+		name := strings.SplitN(strings.TrimPrefix(p, legacy+string(filepath.Separator)), string(filepath.Separator), 2)[0]
+		if name == "" || seen[name] {
+			continue
+		}
+		seen[name] = true
+		var targets []string
+		for _, category := range []string{"MOX", "Personal"} {
+			if info, err := os.Stat(filepath.Join(home, "AI", "Project", category, name)); err == nil && info.IsDir() {
+				targets = append(targets, filepath.Join(home, "AI", "Project", category, name))
+			}
+		}
+		old := filepath.Join(legacy, name)
+		switch {
+		case len(targets) != 1:
+			blocked = append(blocked, fmt.Sprintf("%s: Codex держит старую папку %s, а в ~/AI/Project найдено копий: %d", name, old, len(targets)))
+		case !dirEmptyOrMissing(old):
+			blocked = append(blocked, fmt.Sprintf("%s: Codex держит старую папку %s, и в ней есть файлы — разобрать вручную", name, old))
+		default:
+			pairs = append(pairs, [2]string{old, targets[0]})
+		}
+	}
+	return pairs, blocked, nil
+}
+
+func dirEmptyOrMissing(dir string) bool {
+	entries, err := os.ReadDir(dir)
+	if os.IsNotExist(err) {
+		return true
+	}
+	if err != nil {
+		return false
+	}
+	for _, e := range entries {
+		if e.Name() != ".DS_Store" {
+			return false
+		}
+	}
+	return true
 }

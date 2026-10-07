@@ -532,3 +532,106 @@ func TestPlanLocalProjectsMovesTransferredPersonalRepo(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// codexState creates a state_5.sqlite with the tables that carry folders: threads, project_roots, thread_attachments.
+func codexState(t *testing.T, codexHome string) *sql.DB {
+	t.Helper()
+	if err := os.MkdirAll(codexHome, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	db, err := sql.Open("sqlite", filepath.Join(codexHome, "state_5.sqlite"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, q := range []string{
+		`CREATE TABLE threads(id TEXT, cwd TEXT, rollout_path TEXT, sandbox_policy TEXT)`,
+		`CREATE TABLE project_roots(project_id TEXT, position INTEGER, path TEXT)`,
+		`CREATE TABLE thread_attachments(id TEXT, payload TEXT)`,
+	} {
+		if _, err := db.Exec(q); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return db
+}
+
+// A move rewrites the sidebar project, the thread's sandbox and attachments too — not only cwd (Lilya, 2026-10-07).
+func TestRewriteLocalPathsMovesProjectsSandboxAndAttachments(t *testing.T) {
+	home := t.TempDir()
+	codexHome := filepath.Join(home, ".codex")
+	old := filepath.Join(home, "MOX", "projects", "Site")
+	newPath := filepath.Join(home, "AI", "Project", "Personal", "Site")
+	db := codexState(t, codexHome)
+	sandbox := `{"file_system":{"entries":[{"path":{"type":"path","path":"` + old + `"},"access":"write"}]}}`
+	db.Exec(`INSERT INTO threads VALUES ('t1', ?, '', ?)`, old, sandbox)
+	db.Exec(`INSERT INTO project_roots VALUES ('p1', 0, ?), ('p2', 0, ?)`, old, old+"-other")
+	db.Exec(`INSERT INTO thread_attachments VALUES ('a1', ?)`, `{"root":"`+old+`","url":"x"}`)
+	db.Close()
+	st, err := RewriteLocalPaths(codexHome, [][2]string{{old, newPath}})
+	if err != nil || st.ThreadsLeft != 0 {
+		t.Fatalf("rewrite: %+v %v", st, err)
+	}
+	db, _ = sql.Open("sqlite", filepath.Join(codexHome, "state_5.sqlite"))
+	defer db.Close()
+	var root, sibling, sb, payload string
+	db.QueryRow(`SELECT path FROM project_roots WHERE project_id='p1'`).Scan(&root)
+	db.QueryRow(`SELECT path FROM project_roots WHERE project_id='p2'`).Scan(&sibling)
+	db.QueryRow(`SELECT sandbox_policy FROM threads`).Scan(&sb)
+	db.QueryRow(`SELECT payload FROM thread_attachments`).Scan(&payload)
+	if root != newPath || sibling != old+"-other" {
+		t.Fatalf("project roots: %q %q", root, sibling)
+	}
+	if !strings.Contains(sb, `"`+newPath+`"`) || strings.Contains(sb, old+`"`) {
+		t.Fatalf("sandbox: %s", sb)
+	}
+	if !strings.Contains(payload, `"`+newPath+`"`) {
+		t.Fatalf("attachment: %s", payload)
+	}
+}
+
+// Projects left on ~/MOX/projects after an earlier move are found; a folder with files or without one new copy is not
+// touched.
+func TestStaleProjectRoots(t *testing.T) {
+	home := t.TempDir()
+	codexHome := filepath.Join(home, ".codex")
+	legacy := filepath.Join(home, "MOX", "projects")
+	for _, dir := range []string{
+		filepath.Join(home, "AI", "Project", "Personal", "Site"),
+		filepath.Join(home, "AI", "Project", "MOX", "busy"),
+		filepath.Join(legacy, "busy"),
+		filepath.Join(legacy, "empty"),
+		filepath.Join(home, "AI", "Project", "MOX", "empty"),
+	} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	os.WriteFile(filepath.Join(legacy, "busy", "work.txt"), []byte("x"), 0o644)
+	os.WriteFile(filepath.Join(legacy, "empty", ".DS_Store"), []byte("x"), 0o644)
+	db := codexState(t, codexHome)
+	db.Exec(`INSERT INTO project_roots VALUES ('p1',0,?),('p2',0,?),('p3',0,?),('p4',0,?)`,
+		filepath.Join(legacy, "Site"), filepath.Join(legacy, "busy"), filepath.Join(legacy, "nowhere"), filepath.Join(home, "AI", "Project", "MOX", "x"))
+	db.Exec(`INSERT INTO threads VALUES ('t1', ?, '', '')`, filepath.Join(legacy, "empty", "sub"))
+	db.Close()
+	pairs, blocked, err := StaleProjectRoots(home, codexHome)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]string{}
+	for _, p := range pairs {
+		got[p[0]] = p[1]
+	}
+	if len(pairs) != 2 || got[filepath.Join(legacy, "Site")] != filepath.Join(home, "AI", "Project", "Personal", "Site") ||
+		got[filepath.Join(legacy, "empty")] != filepath.Join(home, "AI", "Project", "MOX", "empty") {
+		t.Fatalf("pairs: %v", pairs)
+	}
+	if len(blocked) != 2 || !strings.Contains(strings.Join(blocked, "\n"), "busy") || !strings.Contains(strings.Join(blocked, "\n"), "nowhere") {
+		t.Fatalf("blocked: %v", blocked)
+	}
+	if _, err := RewriteLocalPaths(codexHome, pairs); err != nil {
+		t.Fatal(err)
+	}
+	if pairs, _, _ := StaleProjectRoots(home, codexHome); len(pairs) != 0 {
+		t.Fatalf("after repair: %v", pairs)
+	}
+}
