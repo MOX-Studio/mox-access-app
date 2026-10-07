@@ -189,7 +189,19 @@ func (a *App) Harness(ctx context.Context, withDev bool) (harness.Report, error)
 	if err != nil {
 		return harness.Report{}, fmt.Errorf("проверка старых проектов: %w", err)
 	}
-	if len(moves) > 0 {
+	// Projects moved earlier may still be on the old path in Codex (the move before 0.5.8 rewrote threads, not projects).
+	// A pending move rewrites the projects itself.
+	var stale [][2]string
+	var blocked []string
+	if len(moves) == 0 {
+		if stale, blocked, err = migrate.StaleProjectRoots(userHome, a.ops.Home()); err != nil {
+			return harness.Report{}, fmt.Errorf("проверка путей проектов в Codex: %w", err)
+		}
+	}
+	for _, b := range blocked {
+		a.log("⚠ " + b)
+	}
+	if len(moves) > 0 || len(stale) > 0 {
 		a.log("→ закрываю Codex на время переноса проектов в ~/AI")
 		if err := a.ops.QuitCodex(); err != nil {
 			return harness.Report{}, err
@@ -206,8 +218,18 @@ func (a *App) Harness(ctx context.Context, withDev bool) (harness.Report, error)
 			}
 			a.log("каталог оболочки отложен (пересоберётся при запуске)")
 		}
+	}
+	if len(moves) > 0 {
 		if _, err := migrate.RehomeLocalProjects(userHome, a.ops.Home(), a.log); err != nil {
 			return harness.Report{}, fmt.Errorf("перенос в ~/AI: %w", err)
+		}
+	}
+	if len(stale) > 0 {
+		for _, pr := range stale {
+			a.log("→ проект в Codex: " + pr[0] + " → " + pr[1])
+		}
+		if _, err := migrate.RewriteLocalPaths(a.ops.Home(), stale); err != nil {
+			return harness.Report{}, fmt.Errorf("пути проектов в Codex: %w", err)
 		}
 	}
 	rep, err := harness.Setup(harness.Options{Codex: bin, Gh: gh, Home: userHome, CodexHome: a.ops.Home(), Source: "MOX-Studio/mox-harness", WithDev: withDev, Name: b.Employee.Name, Email: b.Employee.Email, Log: a.log})

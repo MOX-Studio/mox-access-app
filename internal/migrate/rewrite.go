@@ -101,12 +101,34 @@ func rewriteMappings(codexDir string, pairs [][2]string) (Stats, error) {
 				}
 			}
 		}
+		// The sidebar's projects and each thread's sandbox and attachments carry the folder too: a project left on the old
+		// path makes every new thread in it start in the old folder (Lilya, 2026-10-07: project Site on ~/MOX/projects/Site
+		// after the move to ~/AI/Project).
+		if hasColumn(db, "project_roots", "path") {
+			for _, pr := range databasePairs(pairs) {
+				query := "UPDATE project_roots SET path = ? || substr(path, length(?) + 1) WHERE substr(path, 1, length(?)) = ? AND (length(path) = length(?) OR substr(path, length(?) + 1, 1) IN ('/', char(92)))"
+				if _, err := db.Exec(query, pr[1], pr[0], pr[0], pr[0], pr[0], pr[0]); err != nil {
+					return st, fmt.Errorf("state_5.sqlite project_roots: %w", err)
+				}
+			}
+		}
+		for _, tc := range [][2]string{{"threads", "sandbox_policy"}, {"thread_attachments", "payload"}} {
+			if err := rewriteTextColumn(db, tc[0], tc[1], pairs); err != nil {
+				return st, fmt.Errorf("state_5.sqlite %s.%s: %w", tc[0], tc[1], err)
+			}
+		}
 		for _, pr := range databasePairs(pairs) {
 			var left int
 			if err := db.QueryRow(`SELECT count(*) FROM threads WHERE cwd = ? OR substr(cwd, 1, length(?) + 1) IN (?, ?) OR rollout_path = ? OR substr(rollout_path, 1, length(?) + 1) IN (?, ?)`, pr[0], pr[0], pr[0]+"/", pr[0]+"\x5c", pr[0], pr[0], pr[0]+"/", pr[0]+"\x5c").Scan(&left); err != nil {
 				return st, err
 			}
 			st.ThreadsLeft += left
+			if hasColumn(db, "project_roots", "path") {
+				if err := db.QueryRow(`SELECT count(*) FROM project_roots WHERE path = ? OR substr(path, 1, length(?) + 1) IN (?, ?)`, pr[0], pr[0], pr[0]+"/", pr[0]+"\x5c").Scan(&left); err != nil {
+					return st, err
+				}
+				st.ThreadsLeft += left
+			}
 		}
 	}
 	for _, name := range []string{"thread_history_1.sqlite", "thread_history_1.sqlite-wal", "thread_history_1.sqlite-shm"} {
@@ -115,6 +137,49 @@ func rewriteMappings(codexDir string, pairs [][2]string) (Stats, error) {
 		}
 	}
 	return st, nil
+}
+
+// hasColumn tells whether table has column; older Codex databases lack some of them.
+func hasColumn(db *sql.DB, table, column string) bool {
+	var n int
+	return db.QueryRow(`SELECT count(*) FROM pragma_table_info(?) WHERE name = ?`, table, column).Scan(&n) == nil && n > 0
+}
+
+// rewriteTextColumn rewrites paths inside a JSON text column row by row, with the same boundaries as the rollouts.
+func rewriteTextColumn(db *sql.DB, table, column string, pairs [][2]string) error {
+	if !hasColumn(db, table, column) {
+		return nil
+	}
+	rows, err := db.Query(`SELECT rowid, "` + column + `" FROM "` + table + `" WHERE "` + column + `" IS NOT NULL`)
+	if err != nil {
+		return err
+	}
+	type change struct {
+		id    int64
+		value string
+	}
+	var changes []change
+	for rows.Next() {
+		var id int64
+		var value string
+		if err := rows.Scan(&id, &value); err != nil {
+			rows.Close()
+			return err
+		}
+		if out := string(rewriteTextPaths([]byte(value), pairs)); out != value {
+			changes = append(changes, change{id, out})
+		}
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	for _, c := range changes {
+		if _, err := db.Exec(`UPDATE "`+table+`" SET "`+column+`" = ? WHERE rowid = ?`, c.value, c.id); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func writeFileAtomic(path string, data []byte, mode fs.FileMode) error {
