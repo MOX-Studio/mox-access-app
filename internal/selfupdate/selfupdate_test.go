@@ -180,3 +180,25 @@ func TestTargetFindsTheBundle(t *testing.T) {
 		t.Fatalf("bare binary: %q", got)
 	}
 }
+
+// A copy Finder renamed on a second drag ("MOX Access 3.app") is updated in place from the release's "MOX Access.app".
+func TestApplyUpdatesARenamedCopy(t *testing.T) {
+	archive := bundleZip(t, "new")
+	srv := release(t, "v0.5.7", archive, sum(archive))
+	dir := t.TempDir()
+	target := filepath.Join(dir, "Applications", "MOX Access 3.app")
+	os.MkdirAll(filepath.Join(target, "Contents", "MacOS"), 0o755)
+	os.WriteFile(filepath.Join(target, "Contents", "MacOS", "moxaccess"), []byte("old"), 0o755)
+	u := &Updater{Current: "0.5.6", Dir: filepath.Join(dir, "app"), Target: target, API: srv.URL, Wait: 2 * time.Second,
+		Start: func(string) error { return MarkStarted(filepath.Join(dir, "app"), "0.5.7") }}
+	rel, err := u.Check(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := u.Apply(context.Background(), rel); err != nil {
+		t.Fatal(err)
+	}
+	if b, _ := os.ReadFile(filepath.Join(target, "Contents", "MacOS", "moxaccess")); string(b) != "new" {
+		t.Fatalf("binary after update: %q", b)
+	}
+}

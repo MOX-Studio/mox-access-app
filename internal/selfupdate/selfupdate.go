@@ -142,6 +142,9 @@ func parse(v string) ([3]int, bool) {
 
 // Apply installs rel over Target and starts it. It returns nil once the new copy has written its marker — the caller
 // then quits — and ErrNotStarted when the copy is installed but did not report in time.
+// ReleaseName is the application's name inside a release archive, without the extension.
+const ReleaseName = "MOX Access"
+
 func (u *Updater) Apply(ctx context.Context, rel *Release) error {
 	if u.Target == "" {
 		return errors.New("не найдено, где установлено приложение")
@@ -154,7 +157,10 @@ func (u *Updater) Apply(ctx context.Context, rel *Release) error {
 	defer os.Remove(archive)
 	staged := u.Target + ".new"
 	os.RemoveAll(staged)
-	if err := unpack(archive, filepath.Base(u.Target), staged); err != nil {
+	// The release always ships "MOX Access.app" / "MOX Access.exe"; the installed copy may carry another name — Finder
+	// calls a duplicate "MOX Access 3.app", a browser a second download "MOX Access (1).exe" (Lilya, 2026-10-07). The
+	// archive is read by the release name and put in place of the copy that runs, whatever it is called.
+	if err := unpack(archive, ReleaseName+filepath.Ext(u.Target), staged); err != nil {
 		os.RemoveAll(staged)
 		return fmt.Errorf("архив обновления: %w", err)
 	}
