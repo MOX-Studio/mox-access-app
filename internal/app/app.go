@@ -50,6 +50,7 @@ type Snapshot struct {
 	Employee string
 	Tunnel   tunnel.Status
 	KeyText  string // last E2E check: "ключ действует" / "ключ отозван" / ""
+	Login    string // corporate mode: what Codex's auth.json holds — codex.AuthMox / AuthMissing / AuthOther; empty otherwise
 	Harness  string
 	Imported time.Time
 	Hint     string // platform note after ВКЛ/ВЫКЛ, empty on macOS
@@ -93,6 +94,9 @@ func (a *App) Status() Snapshot {
 	s := Snapshot{Mode: a.st.Mode, Employee: a.st.Employee, KeyText: a.st.LastCheckText, Harness: a.st.HarnessVersion, Imported: a.st.ImportedAt, Hint: a.ops.RestartHint()}
 	if a.tn != nil {
 		s.Tunnel = a.tn.Status()
+	}
+	if a.b != nil && a.st.Mode == state.ModeCorporate {
+		s.Login = codex.AuthState(a.ops.Home(), a.b.AccessToken())
 	}
 	return s
 }
@@ -351,19 +355,55 @@ func (a *App) stopTunnel() {
 // stay on the sign-in screen. Once the tunnel is up the application restarts it — only when it is running and can surely
 // be opened again; otherwise it is left alone.
 func (a *App) RestartCodexAfterLogin() error {
+	return a.restartCodex("после входа", "он открылся раньше туннеля")
+}
+
+// EnsureLogin puts the MOX login back when corporate mode is on but Codex's auth.json lost it: after a reboot that beat
+// the tunnel Codex shows its sign-in screen, and a personal sign-in there (or a sign-out) replaces the MOX login — the
+// gateway then answers invalid_api_key and no restart helps (Dinara, 2026-10-06). The login found there is kept in a
+// backup. Then ChatGPT is restarted on the same terms as after login. Skipped while ВКЛ/ВЫКЛ runs or the tunnel is down;
+// restored tells whether the login was put back.
+func (a *App) EnsureLogin() (restored bool, err error) {
+	b := a.Bundle()
+	if b == nil || a.Status().Mode != state.ModeCorporate || !a.Status().Tunnel.Connected {
+		return false, nil
+	}
+	home := a.ops.Home()
+	found := codex.AuthState(home, b.AccessToken())
+	if found == codex.AuthMox {
+		return false, nil
+	}
+	// A revoked key is not put back: Codex would drop it again and be restarted every minute.
+	if err := a.check(context.Background()); err != nil {
+		return false, fmt.Errorf("вход MOX в Codex пропал, но вернуть его нельзя: %w", err)
+	}
+	if a.take() != nil {
+		return false, nil // ВКЛ/ВЫКЛ is running: it sets auth.json itself
+	}
+	err = codex.InstallAuth(home, b.Auth)
+	a.release()
+	if err != nil {
+		return false, fmt.Errorf("возврат входа MOX: %w", err)
+	}
+	what := map[string]string{codex.AuthMissing: "входа нет", codex.AuthOther: "там другой вход"}[found]
+	a.log("→ вход MOX в Codex пропал (" + what + ") — вернул")
+	return true, a.restartCodex("вход MOX", "чтобы он прочитал вход заново")
+}
+
+func (a *App) restartCodex(when, why string) error {
 	b := a.Bundle()
 	if b == nil || a.Status().Mode != state.ModeCorporate || !a.Status().Tunnel.Connected {
 		return nil
 	}
 	if !a.ops.CodexRunning() {
-		a.log("после входа: ChatGPT не запущен — не трогаю")
+		a.log(when + ": ChatGPT не запущен — не трогаю")
 		return nil
 	}
 	if !a.ops.SessionReady(b.EnvVars(a.pemPath())) {
-		a.log("после входа: ChatGPT запущен, но переоткрыть его с рабочим доступом не выйдет — не трогаю")
+		a.log(when + ": ChatGPT запущен, но переоткрыть его с рабочим доступом не выйдет — не трогаю")
 		return nil
 	}
-	a.log("→ после входа: перезапускаю ChatGPT, он открылся раньше туннеля")
+	a.log("→ " + when + ": перезапускаю ChatGPT, " + why)
 	if err := a.ops.QuitCodex(); err != nil {
 		return err
 	}

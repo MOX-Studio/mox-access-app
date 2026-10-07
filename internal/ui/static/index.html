@@ -19,6 +19,7 @@ ol{padding-left:20px}li{margin:4px 0}.hint{color:var(--mut);font-size:13px}
  <div class="row"><span class="k">Сотрудник</span><span id="emp">—</span></div>
  <div class="row"><span class="k">Туннель к шлюзу</span><span id="tun">—</span></div>
  <div class="row"><span class="k">Ключ MOX</span><span id="key">—</span></div>
+ <div class="row"><span class="k">Вход в Codex</span><span id="login">—</span></div>
  <div class="row"><span class="k">Набор MOX (harness)</span><span id="har">—</span></div>
  <div class="row"><span class="k">Приложение</span><span id="app">—</span></div>
  <div class="actions">
@@ -46,7 +47,8 @@ async function refresh(){try{const s=await api('/api/status');$('ver').textConte
  const on=s.mode==='corporate';$('mode').innerHTML=on?'<span class="on">включён</span>':'<span class="off">выключен (личный)</span>';
  $('emp').textContent=s.employee||'файл .moxaccess не импортирован';
  $('tun').innerHTML=on?(s.tunnel.connected?'<span class="on">подключён</span>':'<span class="bad">нет соединения'+(s.tunnel.lastError?' — '+s.tunnel.lastError:'')+'</span>'):'—';
- $('key').textContent=s.keyText||'—';$('har').textContent=s.harness?('v'+s.harness):'не подключён';
+ $('key').textContent=s.keyText||'—';
+ $('login').innerHTML=!on?'—':s.login==='mox'?'<span class="on">рабочий (MOX)</span>':'<span class="bad">'+(s.login==='other'?'другой вход':'нет входа')+' — приложение вернёт рабочий в течение минуты</span>';$('har').textContent=s.harness?('v'+s.harness):'не подключён';
  $('app').innerHTML=s.update?('<span class="bad">доступна версия '+s.update+'</span>'):'v'+s.version;$('update').textContent=s.update?('Обновить приложение до '+s.update):'Обновить приложение';$('update').disabled=s.busy;
  $('toggle').textContent=on?'Выключить корпоративный Codex':'Включить корпоративный Codex';
  for(const b of ['toggle','check','harness','migrate'])$(b).disabled=s.busy||!s.employee;

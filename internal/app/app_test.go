@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/MOX-Studio/mox-access-app/internal/bundle"
+	"github.com/MOX-Studio/mox-access-app/internal/codex"
 	"github.com/MOX-Studio/mox-access-app/internal/state"
 	"github.com/MOX-Studio/mox-access-app/internal/tunnel/tunneltest"
 	"golang.org/x/crypto/ssh"
@@ -376,5 +377,67 @@ func TestRestartCodexAfterLogin(t *testing.T) {
 		if got := strings.Join(ops.steps, " "); got != c.want {
 			t.Fatalf("%s: steps %q, want %q", c.name, got, c.want)
 		}
+	}
+}
+
+// A sign-in or sign-out on Codex's own screen replaces the MOX login: it is put back and ChatGPT restarted (Dinara, 2026-10-06).
+func TestEnsureLoginPutsTheMoxLoginBack(t *testing.T) {
+	dir := t.TempDir()
+	gw, certPEM := gateway(t)
+	defer gw.Close()
+	privPEM, userPub := tunneltest.NewUserKey(t)
+	relay := tunneltest.New(t, userPub, gw.Listener.Addr().String())
+	defer relay.Stop()
+	ops := &fakeOps{home: filepath.Join(dir, ".codex")}
+	os.MkdirAll(ops.home, 0o700)
+	a, err := New(filepath.Join(dir, "app"), ops, func(string) {})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := a.Import(testBundle(t, dir, relay.Port(), relay.HostKeyLine(), privPEM, certPEM, freePort(t))); err != nil {
+		t.Fatal(err)
+	}
+	authPath := filepath.Join(ops.home, "auth.json")
+	os.WriteFile(authPath, []byte(`{"tokens":{"access_token":"personal"}}`), 0o600)
+	if restored, err := a.EnsureLogin(); restored || err != nil {
+		t.Fatalf("personal mode must keep the personal login: %v %v", restored, err)
+	}
+	if err := a.Enable(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	defer a.Disable(context.Background())
+	if s := a.Status(); s.Login != codex.AuthMox {
+		t.Fatalf("after ВКЛ login %q", s.Login)
+	}
+	ops.steps, ops.running = nil, true
+	if restored, err := a.EnsureLogin(); restored || err != nil || len(ops.steps) != 0 {
+		t.Fatalf("intact login must not be touched: %v %v %v", restored, err, ops.steps)
+	}
+	for _, c := range []struct {
+		name string
+		set  func()
+	}{
+		{"signed in personally", func() { os.WriteFile(authPath, []byte(`{"tokens":{"access_token":"personal-again"}}`), 0o600) }},
+		{"signed out", func() { os.Remove(authPath) }},
+	} {
+		c.set()
+		ops.steps, ops.running = nil, true
+		restored, err := a.EnsureLogin()
+		if !restored || err != nil {
+			t.Fatalf("%s: restored %v, %v", c.name, restored, err)
+		}
+		if got := strings.Join(ops.steps, " "); got != "quit launch" {
+			t.Fatalf("%s: steps %q", c.name, got)
+		}
+		if s := a.Status(); s.Login != codex.AuthMox {
+			t.Fatalf("%s: login %q", c.name, s.Login)
+		}
+	}
+	// A gateway that refuses the key: nothing is put back, or Codex would be restarted every minute.
+	gw.Close()
+	os.Remove(authPath)
+	ops.steps = nil
+	if restored, err := a.EnsureLogin(); restored || err == nil || len(ops.steps) != 0 {
+		t.Fatalf("unverified key must not be put back: %v %v %v", restored, err, ops.steps)
 	}
 }

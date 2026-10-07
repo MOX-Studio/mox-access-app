@@ -65,7 +65,7 @@ func (w *Web) handler() http.Handler {
 		w.mu.Lock()
 		busy := w.busy
 		w.mu.Unlock()
-		writeJSON(rw, 200, map[string]any{"version": w.Version, "mode": s.Mode, "employee": s.Employee, "keyText": s.KeyText, "harness": s.Harness, "busy": busy, "update": w.Updates.Available(),
+		writeJSON(rw, 200, map[string]any{"version": w.Version, "mode": s.Mode, "employee": s.Employee, "keyText": s.KeyText, "login": s.Login, "harness": s.Harness, "busy": busy, "update": w.Updates.Available(),
 			"tunnel": map[string]any{"connected": s.Tunnel.Connected, "reconnects": s.Tunnel.Reconnects, "lastError": s.Tunnel.LastError}})
 	})
 	mux.HandleFunc("/api/log", func(rw http.ResponseWriter, r *http.Request) {
