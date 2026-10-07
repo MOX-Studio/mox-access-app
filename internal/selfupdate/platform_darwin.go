@@ -28,9 +28,9 @@ func translocated(target string) error {
 	if !strings.Contains(target, "/AppTranslocation/") {
 		return nil
 	}
-	return errors.New("macOS запустила MOX Access из карантина (временная папка только для чтения), поэтому обновить его нельзя. " +
-		"Выйди из кольца («Выйти»), в Терминале выполни: xattr -dr com.apple.quarantine \"/Applications/MOX Access.app\" — " +
-		"и открой MOX Access снова, потом «Обновить приложение»")
+	return errors.New("macOS запустила MOX Access из карантина (временная папка только для чтения): так бывает, когда приложение " +
+		"открыто не из «Программ». Выйди из кольца («Выйти»), перетащи MOX Access в Finder в «Программы» (не копируй), " +
+		"открой его оттуда и снова нажми «Обновить приложение»")
 }
 
 // prepare drops the quarantine flag so Gatekeeper does not hold the new copy: the download came from our own process,

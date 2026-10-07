@@ -210,7 +210,7 @@ func TestApplyRefusesATranslocatedCopy(t *testing.T) {
 	}
 	u := &Updater{Current: "0.5.7", Target: "/private/var/folders/x/T/AppTranslocation/ABC/d/MOX Access.app", API: "http://127.0.0.1:1"}
 	err := u.Apply(context.Background(), &Release{Version: "0.5.9"})
-	if err == nil || !strings.Contains(err.Error(), "xattr -dr com.apple.quarantine") {
+	if err == nil || !strings.Contains(err.Error(), "в «Программы»") {
 		t.Fatalf("err = %v", err)
 	}
 }
