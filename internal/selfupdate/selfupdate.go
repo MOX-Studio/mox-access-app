@@ -149,6 +149,9 @@ func (u *Updater) Apply(ctx context.Context, rel *Release) error {
 	if u.Target == "" {
 		return errors.New("не найдено, где установлено приложение")
 	}
+	if err := translocated(u.Target); err != nil {
+		return err
+	}
 	u.log("→ обновление: скачиваю " + rel.Version)
 	archive, err := u.download(ctx, rel)
 	if err != nil {

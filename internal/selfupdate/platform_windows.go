@@ -14,6 +14,8 @@ func Target(exe string) string { return exe }
 
 func prepare(string) error { return nil }
 
+func translocated(string) error { return nil }
+
 // Starter runs the new executable detached from the quitting process.
 func Starter(args []string) func(target string) error {
 	return func(target string) error {

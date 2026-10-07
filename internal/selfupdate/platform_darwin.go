@@ -3,6 +3,7 @@
 package selfupdate
 
 import (
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -19,6 +20,17 @@ func Target(exe string) string {
 		return ""
 	}
 	return exe[:i+len(".app")]
+}
+
+// translocated: macOS started a quarantined copy from a read-only random folder (App Translocation) — nothing can be
+// replaced there (Lilya, 2026-10-07: "mkdir …/AppTranslocation/…/MOX Access.app.new: read-only file system").
+func translocated(target string) error {
+	if !strings.Contains(target, "/AppTranslocation/") {
+		return nil
+	}
+	return errors.New("macOS запустила MOX Access из карантина (временная папка только для чтения), поэтому обновить его нельзя. " +
+		"Выйди из кольца («Выйти»), в Терминале выполни: xattr -dr com.apple.quarantine \"/Applications/MOX Access.app\" — " +
+		"и открой MOX Access снова, потом «Обновить приложение»")
 }
 
 // prepare drops the quarantine flag so Gatekeeper does not hold the new copy: the download came from our own process,
