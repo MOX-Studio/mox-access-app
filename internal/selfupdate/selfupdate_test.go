@@ -202,3 +202,15 @@ func TestApplyUpdatesARenamedCopy(t *testing.T) {
 		t.Fatalf("binary after update: %q", b)
 	}
 }
+
+// A copy macOS runs from App Translocation is read-only: the update stops with what to do, before any download.
+func TestApplyRefusesATranslocatedCopy(t *testing.T) {
+	if runtime.GOOS != "darwin" {
+		t.Skip("App Translocation is macOS only")
+	}
+	u := &Updater{Current: "0.5.7", Target: "/private/var/folders/x/T/AppTranslocation/ABC/d/MOX Access.app", API: "http://127.0.0.1:1"}
+	err := u.Apply(context.Background(), &Release{Version: "0.5.9"})
+	if err == nil || !strings.Contains(err.Error(), "xattr -dr com.apple.quarantine") {
+		t.Fatalf("err = %v", err)
+	}
+}
