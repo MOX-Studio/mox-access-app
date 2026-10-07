@@ -99,3 +99,31 @@ func personalFromBackups(home string) []byte {
 	}
 	return nil
 }
+
+// Auth states of auth.json against the MOX key.
+const (
+	AuthMox     = "mox"     // the MOX login with this key
+	AuthMissing = "missing" // no login: Codex shows its sign-in screen
+	AuthOther   = "other"   // a personal or stale login: the gateway answers it with invalid_api_key
+)
+
+// AuthState reports what auth.json holds. The gateway never changes the access_token on refresh, so the MOX login is
+// recognised by the exact key.
+func AuthState(home, key string) string {
+	raw, err := os.ReadFile(filepath.Join(home, "auth.json"))
+	if err != nil {
+		return AuthMissing
+	}
+	var auth struct {
+		Tokens *struct {
+			AccessToken string `json:"access_token"`
+		} `json:"tokens"`
+	}
+	if json.Unmarshal(raw, &auth) != nil || auth.Tokens == nil || auth.Tokens.AccessToken == "" {
+		return AuthMissing
+	}
+	if auth.Tokens.AccessToken == key {
+		return AuthMox
+	}
+	return AuthOther
+}

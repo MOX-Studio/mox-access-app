@@ -105,3 +105,22 @@ func TestEncodeCommand(t *testing.T) {
 		t.Fatalf("got %s want %s", got, want)
 	}
 }
+
+func TestAuthState(t *testing.T) {
+	home := t.TempDir()
+	const key = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJlIiwibW94Ijp7ImtpZCI6IjEifX0.sig"
+	if got := AuthState(home, key); got != AuthMissing {
+		t.Fatalf("no file: %s", got)
+	}
+	for _, c := range []struct{ raw, want string }{
+		{moxAuth, AuthMox},
+		{personalAuth, AuthOther},
+		{`{"auth_mode":"chatgpt","tokens":null}`, AuthMissing},
+		{"junk", AuthMissing},
+	} {
+		os.WriteFile(filepath.Join(home, "auth.json"), []byte(c.raw), 0o600)
+		if got := AuthState(home, key); got != c.want {
+			t.Fatalf("%s: %s, want %s", c.raw, got, c.want)
+		}
+	}
+}

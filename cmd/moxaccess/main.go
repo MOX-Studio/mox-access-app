@@ -102,10 +102,19 @@ func main() {
 				delay *= 2
 			}
 		}
-		if atLogin {
-			if err := a.RestartCodexAfterLogin(); err != nil {
-				logf("✗ перезапуск ChatGPT после входа: " + err.Error())
+		// The MOX login is checked every minute: a sign-in or sign-out on Codex's own screen replaces it, and then only
+		// putting it back helps. Putting it back restarts ChatGPT, so after login the race restart is not repeated.
+		for first := true; ; first = false {
+			restored, err := a.EnsureLogin()
+			if err != nil {
+				logf("✗ " + err.Error())
 			}
+			if first && atLogin && !restored {
+				if err := a.RestartCodexAfterLogin(); err != nil {
+					logf("✗ перезапуск ChatGPT после входа: " + err.Error())
+				}
+			}
+			time.Sleep(time.Minute)
 		}
 	}()
 	// The new copy keeps this run's options; --wait-pid tells it to let this process go first.
