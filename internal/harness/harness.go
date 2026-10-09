@@ -37,7 +37,8 @@ type Report struct {
 // whose folder a user cannot read; CodexCLI.Ensure downloads a private standalone copy there.
 func CodexBinary() (string, error) {
 	if runtime.GOOS == "darwin" {
-		if p := "/Applications/ChatGPT.app/Contents/Resources/codex"; fileExists(p) {
+		home, _ := os.UserHomeDir()
+		if p := engineInApp([]string{"/Applications/ChatGPT.app", filepath.Join(home, "Applications", "ChatGPT.app")}); p != "" {
 			return p, nil
 		}
 	}
@@ -45,6 +46,19 @@ func CodexBinary() (string, error) {
 		return p, nil
 	}
 	return "", errors.New("Codex не найден")
+}
+
+// engineInApp finds the codex engine inside the first ChatGPT.app that has one. ChatGPT.app 26.930+ keeps it as
+// Contents/Resources/codex-cli/bin/codex (a wrapper over CodexCLI.app); older builds as Contents/Resources/codex.
+func engineInApp(apps []string) string {
+	for _, app := range apps {
+		for _, rel := range []string{"Contents/Resources/codex-cli/bin/codex", "Contents/Resources/codex"} {
+			if p := filepath.Join(app, rel); fileExists(p) {
+				return p
+			}
+		}
+	}
+	return ""
 }
 
 func fileExists(p string) bool { _, err := os.Stat(p); return err == nil }
