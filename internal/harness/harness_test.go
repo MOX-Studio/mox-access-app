@@ -86,3 +86,27 @@ func mustRead(t *testing.T, p string) string {
 	}
 	return string(b)
 }
+
+func TestEngineInAppLayouts(t *testing.T) {
+	dir := t.TempDir()
+	put := func(p string) string {
+		os.MkdirAll(filepath.Dir(p), 0o755)
+		os.WriteFile(p, []byte("#!/bin/sh\n"), 0o755)
+		return p
+	}
+	old := filepath.Join(dir, "old", "ChatGPT.app")
+	cur := filepath.Join(dir, "new", "ChatGPT.app")
+	missing := filepath.Join(dir, "missing", "ChatGPT.app")
+	oldEngine := put(filepath.Join(old, "Contents/Resources/codex"))
+	newEngine := put(filepath.Join(cur, "Contents/Resources/codex-cli/bin/codex"))
+
+	if got := engineInApp([]string{missing, cur}); got != newEngine {
+		t.Fatalf("26.930+ layout: got %q, want %q", got, newEngine)
+	}
+	if got := engineInApp([]string{old}); got != oldEngine {
+		t.Fatalf("old layout: got %q, want %q", got, oldEngine)
+	}
+	if got := engineInApp([]string{missing}); got != "" {
+		t.Fatalf("no ChatGPT.app: got %q", got)
+	}
+}
