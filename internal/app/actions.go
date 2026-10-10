@@ -239,5 +239,14 @@ func (a *App) Harness(ctx context.Context, withDev bool) (harness.Report, error)
 	a.mu.Lock()
 	a.st.HarnessVersion = rep.Version
 	a.mu.Unlock()
-	return rep, state.Save(a.Dir, a.st)
+	if err := state.Save(a.Dir, a.st); err != nil {
+		return rep, err
+	}
+	// The set and the service keys arrive with one button; SyncSecrets waits for this action to release.
+	go func() {
+		if _, err := a.SyncSecrets(context.Background()); err != nil {
+			a.log("✗ " + err.Error())
+		}
+	}()
+	return rep, nil
 }

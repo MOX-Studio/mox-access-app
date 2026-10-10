@@ -21,6 +21,15 @@ type State struct {
 	HarnessVersion string    `json:"harnessVersion,omitempty"`
 	LastCheck      time.Time `json:"lastCheck,omitempty"`
 	LastCheckText  string    `json:"lastCheckText,omitempty"`
+	// The personal service keys written into Codex — names and versions only, never values.
+	Secrets        []Secret `json:"secrets,omitempty"`
+	SecretsPending bool     `json:"secretsPending,omitempty"` // written since Codex last started: the window asks for a restart
+}
+
+type Secret struct {
+	Name    string `json:"name"`
+	Version int    `json:"version"`
+	Skipped bool   `json:"skipped,omitempty"` // a server of that name the employee configured herself, or a value not safe to write
 }
 
 func Load(dir string) State {

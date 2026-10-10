@@ -19,6 +19,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -79,12 +80,18 @@ func gateway(t *testing.T) (*httptest.Server, string) {
 	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der})
 	cert, _ := tls.X509KeyPair(certPEM, pemKey(key))
 	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/mox/export" {
+		if r.URL.Path != "/mox/export" && r.URL.Path != "/mox/secrets" {
 			w.WriteHeader(404)
 			return
 		}
-		if r.Header.Get("Authorization") != "Bearer access.token.value" {
+		if r.Header.Get("Authorization") != "Bearer access.token.value" || gatewayRevoked.Load() {
 			w.WriteHeader(401)
+			return
+		}
+		if r.URL.Path == "/mox/secrets" {
+			gatewayMu.Lock()
+			defer gatewayMu.Unlock()
+			json.NewEncoder(w).Encode(map[string]any{"secrets": gatewaySecrets})
 			return
 		}
 		w.WriteHeader(404) // no export made for this employee yet
@@ -93,6 +100,13 @@ func gateway(t *testing.T) (*httptest.Server, string) {
 	srv.StartTLS()
 	return srv, string(certPEM)
 }
+
+// What the test gateway grants at /mox/secrets, and whether it treats the key as revoked.
+var (
+	gatewayMu      sync.Mutex
+	gatewaySecrets = []codex.Secret{}
+	gatewayRevoked atomic.Bool
+)
 
 func pemKey(k *ecdsa.PrivateKey) []byte {
 	b, _ := x509.MarshalECPrivateKey(k)
@@ -440,4 +454,86 @@ func TestEnsureLoginPutsTheMoxLoginBack(t *testing.T) {
 	if restored, err := a.EnsureLogin(); restored || err == nil || len(ops.steps) != 0 {
 		t.Fatalf("unverified key must not be put back: %v %v %v", restored, err, ops.steps)
 	}
+}
+
+func TestSyncSecretsWritesGrantedKeysAndTakesThemAway(t *testing.T) {
+	dir := t.TempDir()
+	gw, certPEM := gateway(t)
+	defer gw.Close()
+	privPEM, userPub := tunneltest.NewUserKey(t)
+	relay := tunneltest.New(t, userPub, gw.Listener.Addr().String())
+	defer relay.Stop()
+	ops := &fakeOps{home: filepath.Join(dir, ".codex")}
+	os.MkdirAll(ops.home, 0o700)
+	os.WriteFile(filepath.Join(ops.home, "config.toml"), []byte("model = \"gpt-5\"\n"), 0o600)
+	rec := &recorder{}
+	a, _ := New(filepath.Join(dir, "app"), ops, rec.log)
+	if err := a.Import(testBundle(t, dir, relay.Port(), relay.HostKeyLine(), privPEM, certPEM, freePort(t))); err != nil {
+		t.Fatal(err)
+	}
+	tilda := codex.Secret{Name: "tilda", Kind: "mcp_http", URL: "https://tilda.ru/api/mcp/", Value: "tilda-secret-value-0001", Version: 1}
+	set := func(s ...codex.Secret) {
+		gatewayMu.Lock()
+		gatewaySecrets = append([]codex.Secret{}, s...)
+		gatewayMu.Unlock()
+	}
+	set(tilda)
+	defer set()
+	if changed, err := a.SyncSecrets(context.Background()); changed || err != nil {
+		t.Fatalf("personal mode must not sync: %v %v", changed, err)
+	}
+	if err := a.Enable(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	cfgPath := filepath.Join(ops.home, "config.toml")
+	ops.steps = nil
+	changed, err := a.SyncSecrets(context.Background())
+	if !changed || err != nil {
+		t.Fatalf("grant: %v %v", changed, err)
+	}
+	cfg, _ := os.ReadFile(cfgPath)
+	if !strings.Contains(string(cfg), "[mcp_servers.tilda] # MOX ACCESS secret") || !strings.Contains(string(cfg), "Bearer tilda-secret-value-0001") {
+		t.Fatalf("config.toml:\n%s", cfg)
+	}
+	if s := a.Status(); !s.SecretsPending || len(s.Secrets) != 1 || s.Secrets[0].Name != "tilda" || len(ops.steps) != 0 {
+		t.Fatalf("status %+v, steps %v (Codex must not be restarted on its own)", s, ops.steps)
+	}
+	if changed, _ := a.SyncSecrets(context.Background()); changed {
+		t.Fatal("same grant rewrote config.toml")
+	}
+	for _, f := range []string{rec.String(), readAll(t, filepath.Join(dir, "app", "state.json"))} {
+		if strings.Contains(f, tilda.Value) {
+			t.Fatalf("value leaked into log or state:\n%s", f)
+		}
+	}
+	gatewayRevoked.Store(true)
+	changed, _ = a.SyncSecrets(context.Background())
+	gatewayRevoked.Store(false)
+	cfg, _ = os.ReadFile(cfgPath)
+	if !changed || strings.Contains(string(cfg), "tilda") || a.Status().KeyText != "ключ отозван" {
+		t.Fatalf("revoked key kept the secret: %v\n%s", changed, cfg)
+	}
+	a.SyncSecrets(context.Background())
+	if err := a.Disable(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	cfg, _ = os.ReadFile(cfgPath)
+	if string(cfg) != "model = \"gpt-5\"\n" {
+		t.Fatalf("disable left:\n%s", cfg)
+	}
+	backups, _ := filepath.Glob(cfgPath + ".bak-mox-*")
+	for _, b := range backups {
+		if strings.Contains(readAll(t, b), tilda.Value) {
+			t.Fatalf("backup %s keeps the value", b)
+		}
+	}
+	if s := a.Status(); len(s.Secrets) != 0 || s.SecretsPending {
+		t.Fatalf("after disable %+v", s)
+	}
+}
+
+func readAll(t *testing.T, path string) string {
+	t.Helper()
+	b, _ := os.ReadFile(path)
+	return string(b)
 }

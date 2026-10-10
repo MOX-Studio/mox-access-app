@@ -54,6 +54,9 @@ type Snapshot struct {
 	Harness  string
 	Imported time.Time
 	Hint     string // platform note after ВКЛ/ВЫКЛ, empty on macOS
+	Secrets  []state.Secret
+	// SecretsPending: service keys were written since Codex last started — it reads them after a restart.
+	SecretsPending bool
 }
 
 type App struct {
@@ -91,7 +94,7 @@ func (a *App) Bundle() *bundle.Bundle { a.mu.Lock(); defer a.mu.Unlock(); return
 func (a *App) Status() Snapshot {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	s := Snapshot{Mode: a.st.Mode, Employee: a.st.Employee, KeyText: a.st.LastCheckText, Harness: a.st.HarnessVersion, Imported: a.st.ImportedAt, Hint: a.ops.RestartHint()}
+	s := Snapshot{Mode: a.st.Mode, Employee: a.st.Employee, KeyText: a.st.LastCheckText, Harness: a.st.HarnessVersion, Imported: a.st.ImportedAt, Hint: a.ops.RestartHint(), Secrets: append([]state.Secret(nil), a.st.Secrets...), SecretsPending: a.st.SecretsPending}
 	if a.tn != nil {
 		s.Tunnel = a.tn.Status()
 	}
@@ -275,6 +278,14 @@ func (a *App) Disable(ctx context.Context) error {
 		return fmt.Errorf("шаг «окружение Codex»: %w", err)
 	}
 	a.log("→ config.toml")
+	// The personal service keys belong to corporate mode: they leave with it.
+	if raw, err := os.ReadFile(filepath.Join(home, "config.toml")); err == nil {
+		if without := codex.WithoutSecrets(string(raw)); without != string(raw) {
+			if err := os.WriteFile(filepath.Join(home, "config.toml"), []byte(without), 0o600); err != nil {
+				return fmt.Errorf("шаг «config.toml»: %w", err)
+			}
+		}
+	}
 	if err := a.writeConfig(home, b.Config.Fragment, false); err != nil {
 		return fmt.Errorf("шаг «config.toml»: %w", err)
 	}
@@ -292,6 +303,7 @@ func (a *App) Disable(ctx context.Context) error {
 	a.mu.Lock()
 	a.st.Mode = state.ModePersonal
 	a.st.LastCheckText = ""
+	a.st.Secrets, a.st.SecretsPending = nil, false
 	a.mu.Unlock()
 	return state.Save(a.Dir, a.st)
 }
@@ -316,7 +328,8 @@ func (a *App) writeConfig(home, fragment string, install bool) error {
 		return nil
 	}
 	if err == nil {
-		if err := os.WriteFile(path+".bak-mox-"+time.Now().Format("20060102-150405"), current, 0o600); err != nil {
+		// The backup keeps no service keys: they come back from the gateway, and copies of them should not pile up.
+		if err := os.WriteFile(path+".bak-mox-"+time.Now().Format("20060102-150405"), []byte(codex.WithoutSecrets(string(current))), 0o600); err != nil {
 			return err
 		}
 	}
