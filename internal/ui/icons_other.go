@@ -12,6 +12,13 @@ var (
 	iconOn []byte
 	//go:embed icon-attention.ico
 	iconAttention []byte
+	//go:embed icon-update.ico
+	iconOffUpdate []byte
+	//go:embed icon-on-update.ico
+	iconOnUpdate []byte
+	//go:embed icon-attention-update.ico
+	iconAttentionUpdate []byte
 )
 
 var iconOffColor, iconOnColor, iconAttentionColor = iconOff, iconOn, iconAttention
+var iconOffUpdateColor, iconOnUpdateColor, iconAttentionUpdateColor = iconOffUpdate, iconOnUpdate, iconAttentionUpdate

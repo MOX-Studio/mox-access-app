@@ -71,6 +71,8 @@ func (t *Tray) refresh() {
 	}
 	if v := t.Updates.Available(); v != "" {
 		t.items.update.SetTitle("Обновить приложение до " + v)
+		// The dot stays on the ring until the update is installed: a notification passes, the menu bar does not.
+		icon, iconColor = withUpdate(icon)
 	} else {
 		t.items.update.SetTitle("Обновить приложение")
 	}
@@ -166,5 +168,17 @@ func (t *Tray) loop() {
 func (t *Tray) exit() {
 	if t.OnQuit != nil {
 		t.OnQuit()
+	}
+}
+
+// withUpdate is the variant of a ring icon with the update dot.
+func withUpdate(icon []byte) ([]byte, []byte) {
+	switch &icon[0] {
+	case &iconOn[0]:
+		return iconOnUpdate, iconOnUpdateColor
+	case &iconAttention[0]:
+		return iconAttentionUpdate, iconAttentionUpdateColor
+	default:
+		return iconOffUpdate, iconOffUpdateColor
 	}
 }

@@ -18,4 +18,17 @@ var (
 	iconAttention []byte
 	//go:embed icon-attention.png
 	iconAttentionColor []byte
+	// The same three with a dot top right: a newer version waits to be installed.
+	//go:embed icon_template-update.png
+	iconOffUpdate []byte
+	//go:embed icon-update.png
+	iconOffUpdateColor []byte
+	//go:embed icon_template-on-update.png
+	iconOnUpdate []byte
+	//go:embed icon-on-update.png
+	iconOnUpdateColor []byte
+	//go:embed icon_template-attention-update.png
+	iconAttentionUpdate []byte
+	//go:embed icon-attention-update.png
+	iconAttentionUpdateColor []byte
 )

@@ -3,13 +3,14 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 # Tray: systray draws the image at 16×16 pt, so 32 px is the Retina source. Template = black on alpha, macOS recolors it.
-for state in "" "-on" "-attention"; do
-  sed 's/#8ADDD4/#000000/' "build/icon/mark$state.svg" | rsvg-convert -w 32 -h 32 -o "internal/ui/icon_template$state.png"
+states=("" "-on" "-attention" "-update" "-on-update" "-attention-update")
+for state in "${states[@]}"; do
+  sed -e 's/#8ADDD4/#000000/' -e 's/#F5C97A/#000000/' "build/icon/mark$state.svg" | rsvg-convert -w 32 -h 32 -o "internal/ui/icon_template$state.png"
   rsvg-convert -w 32 -h 32 "build/icon/mark$state.svg" -o "internal/ui/icon$state.png"
 done
 # Windows tray wants .ico: 16 and 32 px of the colored mark in one file (PIL packs them).
 tmp="$(mktemp -d)"
-for state in "" "-on" "-attention"; do
+for state in "${states[@]}"; do
   rsvg-convert -w 16 -h 16 "build/icon/mark$state.svg" -o "$tmp/m16$state.png"
   rsvg-convert -w 32 -h 32 "build/icon/mark$state.svg" -o "$tmp/m32$state.png"
   python3 -c "

@@ -126,7 +126,7 @@ func main() {
 		U:      &selfupdate.Updater{Current: Version, Dir: dir, Target: target, Log: logf, Start: selfupdate.Starter(relaunch)},
 		Notify: notify, Alert: alert, Quit: systray.Quit,
 	}
-	go updates.Watch(context.Background(), time.Minute, 6*time.Hour)
+	go updates.Watch(context.Background(), time.Minute, time.Hour)
 	web := &ui.Web{App: a, Version: Version, LogPath: logPath, Updates: updates}
 	if _, err := web.Start(); err != nil {
 		log.Fatal(err)
