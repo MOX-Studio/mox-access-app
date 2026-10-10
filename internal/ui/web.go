@@ -8,15 +8,35 @@ import (
 	"encoding/json"
 	"net"
 	"net/http"
+	"io"
 	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 
 	"github.com/MOX-Studio/mox-access-app/internal/app"
 )
 
-//go:embed static/index.html
+// The page carries the look of mox-studio.ru: its font (Inter Tight, OFL) is served from the binary, so the window
+// works offline; the mark is inline SVG.
+//
+//go:embed static/index.html static/inter-tight.woff
 var static embed.FS
+
+// guarded rejects a POST without the page's own header: a custom header makes a browser preflight a cross-site
+// request, and this server answers no CORS, so another site cannot press the buttons (or import a file) for the employee.
+func guarded(rw http.ResponseWriter, r *http.Request) bool {
+	if r.Method != http.MethodPost {
+		writeJSON(rw, 405, map[string]any{"error": "POST"})
+		return false
+	}
+	if r.Header.Get("X-MOX-Access") != "1" {
+		writeJSON(rw, 403, map[string]any{"error": "запрос не из окна MOX Access"})
+		return false
+	}
+	return true
+}
 
 type Web struct {
 	App     *app.App
@@ -60,12 +80,23 @@ func (w *Web) handler() http.Handler {
 		rw.Header().Set("content-type", "text/html; charset=utf-8")
 		rw.Write(data)
 	})
+	mux.HandleFunc("/inter-tight.woff", func(rw http.ResponseWriter, r *http.Request) {
+		data, _ := static.ReadFile("static/inter-tight.woff")
+		rw.Header().Set("content-type", "font/woff")
+		rw.Header().Set("cache-control", "max-age=86400")
+		rw.Write(data)
+	})
 	mux.HandleFunc("/api/status", func(rw http.ResponseWriter, r *http.Request) {
 		s := w.App.Status()
 		w.mu.Lock()
 		busy := w.busy
 		w.mu.Unlock()
+		secrets := make([]map[string]any, 0, len(s.Secrets))
+		for _, sec := range s.Secrets {
+			secrets = append(secrets, map[string]any{"name": sec.Name, "version": sec.Version, "skipped": sec.Skipped})
+		}
 		writeJSON(rw, 200, map[string]any{"version": w.Version, "mode": s.Mode, "employee": s.Employee, "keyText": s.KeyText, "login": s.Login, "harness": s.Harness, "busy": busy, "update": w.Updates.Available(),
+			"platform": runtime.GOOS, "hint": s.Hint, "secrets": secrets, "secretsPending": s.SecretsPending,
 			"tunnel": map[string]any{"connected": s.Tunnel.Connected, "reconnects": s.Tunnel.Reconnects, "lastError": s.Tunnel.LastError}})
 	})
 	mux.HandleFunc("/api/log", func(rw http.ResponseWriter, r *http.Request) {
@@ -79,8 +110,7 @@ func (w *Web) handler() http.Handler {
 	})
 	action := func(name string, fn func(ctx context.Context) (string, error)) {
 		mux.HandleFunc("/api/"+name, func(rw http.ResponseWriter, r *http.Request) {
-			if r.Method != http.MethodPost {
-				writeJSON(rw, 405, map[string]any{"error": "POST"})
+			if !guarded(rw, r) {
 				return
 			}
 			w.mu.Lock()
@@ -124,6 +154,36 @@ func (w *Web) handler() http.Handler {
 			return "", err
 		}
 		return "набор MOX " + rep.Version + " подключён — перезапустите Codex", nil
+	})
+	action("restart-codex", func(ctx context.Context) (string, error) {
+		return "Codex перезапущен — новые доступы подключены", w.App.RestartCodex()
+	})
+	// The .moxaccess file chosen in the window: the page sends its bytes, Import reads them from a private temp file.
+	mux.HandleFunc("/api/import", func(rw http.ResponseWriter, r *http.Request) {
+		if !guarded(rw, r) {
+			return
+		}
+		raw, err := io.ReadAll(io.LimitReader(r.Body, 1<<20))
+		if err != nil {
+			writeJSON(rw, 400, map[string]any{"error": "файл не прочитан"})
+			return
+		}
+		tmp, err := os.MkdirTemp("", "mox-import-")
+		if err != nil {
+			writeJSON(rw, 500, map[string]any{"error": err.Error()})
+			return
+		}
+		defer os.RemoveAll(tmp)
+		path := filepath.Join(tmp, "bundle.moxaccess")
+		if err := os.WriteFile(path, raw, 0o600); err != nil {
+			writeJSON(rw, 500, map[string]any{"error": err.Error()})
+			return
+		}
+		if err := w.App.Import(path); err != nil {
+			writeJSON(rw, 400, map[string]any{"error": err.Error()})
+			return
+		}
+		writeJSON(rw, 200, map[string]any{"message": "файл принят"})
 	})
 	action("update", func(ctx context.Context) (string, error) {
 		return w.Updates.Install(ctx)

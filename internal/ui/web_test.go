@@ -50,6 +50,12 @@ func TestStatusAndPage(t *testing.T) {
 		t.Fatal("page")
 	}
 	resp, _ = http.Post(url+"/api/enable", "", nil)
+	if resp.StatusCode != 403 {
+		t.Fatalf("a POST without the page header must be refused: %d", resp.StatusCode)
+	}
+	req, _ := http.NewRequest(http.MethodPost, url+"/api/enable", nil)
+	req.Header.Set("X-MOX-Access", "1")
+	resp, _ = http.DefaultClient.Do(req)
 	if resp.StatusCode != 500 {
 		t.Fatalf("enable without bundle must fail: %d", resp.StatusCode)
 	}
