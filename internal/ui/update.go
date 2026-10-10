@@ -9,8 +9,8 @@ import (
 	"github.com/MOX-Studio/mox-access-app/internal/selfupdate"
 )
 
-// Updates is the application's own update, shared by the ring and the status page: a check at start and every few
-// hours, and an install on request — never by itself, so a running Codex turn is not cut by the restart.
+// Updates is the application's own update, shared by the ring and the status page: a check at start and every
+// hour, a dot on the ring while one waits, and an install on request — never by itself, so a running Codex turn is not cut by the restart.
 type Updates struct {
 	U      *selfupdate.Updater
 	Notify func(title, text string) // a passing note
@@ -18,9 +18,13 @@ type Updates struct {
 	Quit   func()                   // ends this process once the new copy runs
 	mu     sync.Mutex
 	latest *selfupdate.Release
-	told   string
+	told   string    // the version the employee was last told about
+	toldAt time.Time // and when: an update left uninstalled is told again a day later
 	busy   bool
 }
+
+// remindEvery is how long an uninstalled update stays quiet after a notification; the dot on the ring stays meanwhile.
+const remindEvery = 24 * time.Hour
 
 // Available is the newer version found by the last check, "" when there is none.
 func (u *Updates) Available() string {
@@ -43,9 +47,9 @@ func (u *Updates) Check(ctx context.Context) (*selfupdate.Release, error) {
 	}
 	u.mu.Lock()
 	u.latest = rel
-	tell := rel != nil && u.told != rel.Version
+	tell := rel != nil && (u.told != rel.Version || time.Since(u.toldAt) >= remindEvery)
 	if tell {
-		u.told = rel.Version
+		u.told, u.toldAt = rel.Version, time.Now()
 	}
 	u.mu.Unlock()
 	if tell {
