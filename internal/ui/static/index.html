@@ -10,100 +10,107 @@
 }
 *{box-sizing:border-box}
 html{background:var(--bg)}
-body{margin:0 auto;max-width:720px;padding:40px 24px 56px;background:var(--bg);color:var(--text);font:400 15px/1.5 var(--font);-webkit-font-smoothing:antialiased}
+body{margin:0 auto;max-width:680px;padding:28px 32px 64px;background:var(--bg);color:var(--text);font:400 15px/1.55 var(--font);-webkit-font-smoothing:antialiased;font-feature-settings:"ss01","cv11"}
 button{font:inherit}
 :focus-visible{outline:2px solid var(--focus);outline-offset:3px}
 
-/* The mark is the state: mint — работает, warm — нужно действие, grey — личный Codex или нет файла. */
-.hero{display:grid;grid-template-columns:72px 1fr;gap:24px;align-items:start}
-.mark{width:72px;height:72px;color:var(--mute);transition:color .4s ease}
+/* The mark is the state, as the logo stands on the site — small, top left: mint — работает, warm — нужно действие,
+   grey — личный Codex или нет файла. The period of the headline carries the same colour. */
+.topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:88px}
+.brand{display:flex;align-items:center;gap:12px;font-size:15px;letter-spacing:-.01em}
+.mark{width:26px;height:26px;color:var(--mute);transition:color .5s ease}
 .mark path{fill:currentColor}
-.hero[data-tone=ok] .mark{color:var(--accent)}
-.hero[data-tone=warn] .mark{color:var(--high)}
-h1{margin:4px 0 10px;font-size:34px;line-height:1.12;letter-spacing:-.02em;font-weight:400}
+body[data-tone=ok] .mark,body[data-tone=ok] h1 .dot{color:var(--accent)}
+body[data-tone=warn] .mark,body[data-tone=warn] h1 .dot{color:var(--high)}
+.ver{font:12px/1 var(--mono);color:var(--mute)}
+
+h1{margin:0;font-size:46px;line-height:1.06;letter-spacing:-.03em;font-weight:400;max-width:13em}
 h1 .rest{color:var(--mute)}
-h1 .dot{color:var(--accent)}
-.hero[data-tone=warn] h1 .dot{color:var(--high)}
-.lead{margin:0;color:var(--mid);max-width:52ch}
-.hero-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:20px}
+h1 .dot{color:var(--mute);transition:color .5s ease}
+.lead{margin:22px 0 0;color:var(--mid);font-size:16px;line-height:1.5;max-width:44ch}
+.hero-actions{display:flex;flex-wrap:wrap;align-items:center;gap:8px 18px;margin-top:32px}
+.hero-actions:empty{display:none}
 
-.btn{display:inline-flex;align-items:center;gap:10px;height:40px;padding:0 20px;border:0;border-radius:999px;background:var(--control);color:var(--text);font-size:12px;letter-spacing:.02em;text-transform:uppercase;cursor:pointer;transition:background .2s ease-in-out}
+.btn{display:inline-flex;align-items:center;gap:10px;height:42px;padding:0 22px;border:0;border-radius:999px;background:var(--control);color:var(--text);font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;cursor:pointer;transition:background .2s ease-in-out,color .2s ease-in-out;white-space:nowrap}
 .btn:hover{background:var(--control-hover)}
-.btn:disabled{opacity:.45;cursor:default}
-.btn.main::before{content:"";width:10px;height:10px;border-radius:50%;background:var(--accent)}
+.btn:disabled{opacity:.4;cursor:default}
+.btn.main::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--accent)}
 .btn.main.warm::before{background:var(--high)}
-.btn.quiet{background:transparent;color:var(--mid);padding:0 14px}
-.btn.quiet:hover{background:var(--surface-2);color:var(--text)}
+.btn.soft{height:36px;padding:0 18px;background:var(--surface);color:var(--mid)}
+.btn.soft:hover{background:var(--control);color:var(--text)}
+.link{border:0;background:none;padding:0;color:var(--mid);font-size:13px;cursor:pointer;text-decoration:underline;text-decoration-color:var(--line-strong);text-underline-offset:4px;transition:color .2s ease-in-out}
+.link:hover{color:var(--text);text-decoration-color:var(--mid)}
+.link:disabled{opacity:.4;cursor:default}
 
-.notice{margin:32px 0 0;padding:18px 22px;border-radius:20px;background:var(--surface);display:flex;gap:16px;align-items:center;justify-content:space-between;flex-wrap:wrap}
-.notice p{margin:0;max-width:46ch}
-.notice strong{font-weight:400;color:var(--high)}
-.notice.ok strong{color:var(--accent)}
+.notice{margin-top:40px;padding:20px 24px;border-radius:20px;background:var(--surface);display:flex;gap:20px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.notice p{margin:0;flex:1 1 260px;max-width:40ch;color:var(--mid)}
+.notice .btn{flex:none}
+.notice p strong{display:block;font-weight:400;color:var(--text);margin-bottom:2px}
 
-section{margin-top:48px}
-h2{margin:0 0 6px;font-size:22px;line-height:1.25;letter-spacing:-.01em;font-weight:400}
+section{margin-top:80px}
+h2{margin:0 0 20px;font-size:21px;line-height:1.3;letter-spacing:-.015em;font-weight:400}
 h2 .rest{color:var(--mute)}
-.rows{margin-top:14px}
-.row{display:flex;justify-content:space-between;align-items:center;gap:20px;padding:16px 0;border-top:1px solid var(--line)}
-.row:last-child{border-bottom:1px solid var(--line)}
+.row{display:flex;justify-content:space-between;align-items:center;gap:24px;padding:18px 0;border-top:1px solid var(--line)}
 .row .what{min-width:0}
 .row .title{display:block}
-.row .note{display:block;color:var(--mid);font-size:13px;margin-top:2px}
-.state{display:inline-flex;align-items:center;gap:8px;color:var(--mid);font-size:13px;white-space:nowrap}
-.state::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--mute)}
+.row .note{display:block;color:var(--mid);font-size:13px;margin-top:3px}
+.state{display:inline-flex;align-items:center;gap:9px;color:var(--mid);font-size:13px;white-space:nowrap}
+.state::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--mute)}
 .state.ok::before{background:var(--accent)}
 .state.warn::before{background:var(--high)}
-.empty{color:var(--mid);font-size:14px;margin:14px 0 0}
+.empty{color:var(--mid);font-size:14px;margin:0;padding:18px 0;border-top:1px solid var(--line);max-width:52ch}
 
-details{margin-top:48px;border-top:1px solid var(--line);padding-top:18px}
-summary{cursor:pointer;color:var(--mid);list-style:none;display:flex;align-items:center;gap:10px}
+details{margin-top:80px}
+summary{cursor:pointer;color:var(--mid);font-size:13px;list-style:none;display:inline-flex;align-items:center;gap:10px;transition:color .2s ease-in-out}
+summary:hover{color:var(--text)}
 summary::-webkit-details-marker{display:none}
-summary::before{content:"";width:8px;height:8px;border-right:1.5px solid var(--mute);border-bottom:1.5px solid var(--mute);transform:rotate(-45deg);transition:transform .2s ease}
+summary::before{content:"";width:6px;height:6px;border-right:1.5px solid currentColor;border-bottom:1.5px solid currentColor;transform:rotate(-45deg);transition:transform .2s ease}
 details[open] summary::before{transform:rotate(45deg)}
-.facts{display:grid;grid-template-columns:minmax(150px,auto) 1fr;gap:8px 20px;margin:20px 0 0;font-size:13px}
+.facts{display:grid;grid-template-columns:minmax(140px,auto) 1fr;gap:10px 24px;margin:24px 0 0;font-size:13px}
 .facts dt{color:var(--mid)}
-.facts dd{margin:0;font-family:var(--mono);color:var(--text);word-break:break-word}
-.support-actions{display:flex;flex-wrap:wrap;gap:10px;margin:18px 0}
-pre{margin:0;background:#1B1B1B;border-radius:12px;padding:14px 16px;font:12px/1.55 var(--mono);color:var(--mid);max-height:260px;overflow:auto;white-space:pre-wrap}
+.facts dd{margin:0;font-family:var(--mono);font-size:12px;color:var(--text);word-break:break-word}
+.support-actions{display:flex;flex-wrap:wrap;align-items:center;gap:8px 18px;margin:24px 0 16px}
+pre{margin:0;background:#1C1C1C;border-radius:16px;padding:16px 18px;font:12px/1.6 var(--mono);color:var(--mid);max-height:260px;overflow:auto;white-space:pre-wrap}
 
-.hero-actions .btn.quiet:first-child{margin-left:-14px}
-.status-line{margin-top:12px;color:var(--mid);font-size:13px}
+.status-line{margin-top:16px;color:var(--mid);font-size:13px}
 .status-line:empty{display:none}
 .status-line.err{color:var(--high)}
 input[type=file]{display:none}
-.drop{outline:2px dashed var(--line-strong);outline-offset:8px;border-radius:12px}
-@media (max-width:560px){.hero{grid-template-columns:1fr}.mark{width:52px;height:52px}h1{font-size:28px}.row{flex-wrap:wrap}}
+.drop{outline:1.5px dashed var(--line-strong);outline-offset:-12px;border-radius:28px}
+@media (max-width:560px){body{padding:20px 20px 48px}.topbar{margin-bottom:56px}h1{font-size:34px}.lead{font-size:15px}section,details{margin-top:56px}.row{flex-wrap:wrap}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style></head><body>
 
-<header class="hero" id="hero" data-tone="idle">
- <svg class="mark" viewBox="397.677 0 223.396 223.088" aria-hidden="true"><path d="M621.073 111.26C621.073 173.463 571.619 223.088 509.66 223.088C447.7 223.088 397.677 173.463 397.677 111.26C397.677 49.0578 447.14 0 509.66 0C572.179 0 621.073 49.049 621.073 111.26ZM422.706 111.26C422.706 160.292 462.488 199.77 509.668 199.77C556.849 199.77 596.062 160.283 596.062 111.26C596.062 62.2381 556.849 23.4158 509.668 23.4158C462.488 23.4158 422.706 62.2114 422.706 111.26Z"/></svg>
- <div>
-  <h1 id="headline">MOX Access<span class="dot">.</span></h1>
-  <p class="lead" id="lead">Загружаю состояние…</p>
-  <div class="hero-actions" id="hero-actions"></div>
-  <div class="status-line" id="msg" role="status" aria-live="polite"></div>
- </div>
+<div class="topbar">
+ <div class="brand"><svg class="mark" viewBox="397.677 0 223.396 223.088" aria-hidden="true"><path d="M621.073 111.26C621.073 173.463 571.619 223.088 509.66 223.088C447.7 223.088 397.677 173.463 397.677 111.26C397.677 49.0578 447.14 0 509.66 0C572.179 0 621.073 49.049 621.073 111.26ZM422.706 111.26C422.706 160.292 462.488 199.77 509.668 199.77C556.849 199.77 596.062 160.283 596.062 111.26C596.062 62.2381 556.849 23.4158 509.668 23.4158C462.488 23.4158 422.706 62.2114 422.706 111.26Z"/></svg><span>MOX Access</span></div>
+ <span class="ver" id="ver"></span>
+</div>
+
+<header class="hero">
+ <h1 id="headline">MOX Access<span class="dot">.</span></h1>
+ <p class="lead" id="lead">Загружаю состояние…</p>
+ <div class="hero-actions" id="hero-actions"></div>
+ <div class="status-line" id="msg" role="status" aria-live="polite"></div>
 </header>
 
 <div id="notices"></div>
 
 <section id="services" hidden>
- <h2>Доступы к сервисам. <span class="rest">Их выдаёт Денис, они сами подключаются к Codex.</span></h2>
- <div class="rows" id="service-rows"></div>
+ <h2>Доступы к сервисам. <span class="rest">Выдаёт компания.</span></h2>
+ <div id="service-rows"></div>
 </section>
 
 <section id="tools" hidden>
- <h2>Инструменты. <span class="rest">Нужны редко — при настройке и обновлениях.</span></h2>
- <div class="rows" id="tool-rows"></div>
+ <h2>Инструменты. <span class="rest">Для настройки и обновлений.</span></h2>
+ <div id="tool-rows"></div>
 </section>
 
 <details id="support">
  <summary>Для поддержки</summary>
  <dl class="facts" id="facts"></dl>
  <div class="support-actions">
-  <button class="btn" id="copy">Скопировать для поддержки</button>
-  <button class="btn quiet" id="check">Проверить связь</button>
+  <button class="btn soft" id="copy">Скопировать для поддержки</button>
+  <button class="link" id="check">Проверить связь</button>
  </div>
  <pre id="log">…</pre>
 </details>
@@ -131,9 +138,9 @@ async function act(path,doing,{confirmText}={}){
 // One verdict, in the order the UX audit set: нет файла → доступ отозван → перелогин Windows → нет связи → вход сбился → новые доступы.
 function verdict(){
  const on=s.mode==='corporate',win=s.platform==='windows';
- if(!s.employee)return {tone:'idle',head:['Подключите доступ','к рабочему Codex'],lead:'Денис пришлёт файл .moxaccess. Выберите его здесь — дальше приложение всё настроит само.',main:{label:'Выбрать файл',run:()=>$('file').click()}};
+ if(!s.employee)return {tone:'idle',head:['Подключите доступ','к рабочему Codex'],lead:'Компания выдаёт файл доступа .moxaccess. Выберите его здесь или перетащите в окно — дальше приложение всё настроит само.',main:{label:'Выбрать файл',run:()=>$('file').click()}};
  if(!on)return {tone:'idle',head:['Сейчас работает','личный Codex'],lead:'Включите рабочий — Codex войдёт под вашей почтой MOX.',main:{label:'Включить рабочий Codex',run:()=>act('/api/enable','Включаю',{confirmText:restartWarn})}};
- if(s.keyText==='ключ отозван')return {tone:'warn',head:['Доступ отозван','администратором'],lead:'Рабочий Codex больше не отвечает. Напишите Денису — он выдаст новый файл, его можно будет выбрать здесь.',main:{label:'Выбрать новый файл',run:()=>$('file').click(),warm:true}};
+ if(s.keyText==='ключ отозван')return {tone:'warn',head:['Доступ отозван','администратором'],lead:'Рабочий Codex больше не отвечает. Компания выдаст новый файл доступа — его можно будет выбрать здесь.',main:{label:'Выбрать новый файл',run:()=>$('file').click(),warm:true}};
  if(win&&s.hint)return {tone:'warn',head:['Остался один шаг','на Windows'],lead:s.hint,main:null};
  if(!s.tunnel.connected)return {tone:'warn',head:['Нет связи','с рабочим Codex'],lead:'Проверьте интернет и VPN. Приложение повторяет попытку само, обычно связь возвращается за минуту.',main:{label:'Проверить связь',run:()=>act('/api/check','Проверяю'),warm:true}};
  if(s.login&&s.login!=='mox')return {tone:'warn',head:['Вход в Codex сбился','возвращаю рабочий'],lead:'Это займёт до минуты, ничего делать не нужно.',main:null};
@@ -143,33 +150,33 @@ function verdict(){
 function render(){
  if(!s)return;
  const v=verdict(),on=s.mode==='corporate';
- $('hero').dataset.tone=v.tone;
+ document.body.dataset.tone=v.tone;$('ver').textContent='v'+s.version;
  $('headline').innerHTML=esc(v.head[0])+' <span class="rest">'+esc(v.head[1])+'</span><span class="dot">.</span>';
  $('lead').textContent=v.lead;
  const actions=$('hero-actions');actions.innerHTML='';
  if(v.main){const b=document.createElement('button');b.className='btn main'+(v.main.warm?' warm':'');b.textContent=v.main.label;b.disabled=busy||s.busy;b.onclick=v.main.run;actions.append(b);}
- if(on){const b=document.createElement('button');b.className='btn quiet';b.textContent='Выключить рабочий Codex';b.disabled=busy||s.busy;b.onclick=()=>act('/api/disable','Выключаю',{confirmText:restartWarn+' Вернётся ваш личный вход.'});actions.append(b);}
+ if(on){const b=document.createElement('button');b.className='link';b.textContent='Выключить рабочий Codex';b.disabled=busy||s.busy;b.onclick=()=>act('/api/disable','Выключаю',{confirmText:restartWarn+' Вернётся ваш личный вход.'});actions.append(b);}
 
  // What asks for attention apart from the verdict: new service keys and a new version.
  const notes=[];
- if(on&&s.secretsPending&&v.tone==='ok')notes.push('<div class="notice ok"><p><strong>Новые доступы к сервисам.</strong> Codex подключит их после перезапуска — сделайте его, когда закончите ответ.</p><button class="btn main" data-run="restart">Перезапустить Codex</button></div>');
- if(s.update)notes.push('<div class="notice"><p><strong>Вышла версия '+esc(s.update)+'.</strong> Обновление займёт полминуты, приложение перезапустится само.</p><button class="btn" data-run="update">Обновить приложение</button></div>');
+ if(on&&s.secretsPending&&v.tone==='ok')notes.push('<div class="notice"><p><strong>Новые доступы к сервисам</strong>Codex подключит их после перезапуска — сделайте его, когда закончите ответ.</p><button class="btn main" data-run="restart">Перезапустить Codex</button></div>');
+ if(s.update)notes.push('<div class="notice"><p><strong>Вышла версия '+esc(s.update)+'</strong>Обновление займёт полминуты, приложение перезапустится само.</p><button class="btn main" data-run="update">Обновить приложение</button></div>');
  $('notices').innerHTML=notes.join('');
 
  const services=on?(s.secrets||[]):[];
  $('services').hidden=!on;
  $('service-rows').innerHTML=services.length?services.map(x=>'<div class="row"><span class="what"><span class="title">'+esc(serviceName(x.name))+'</span><span class="note">'+(x.skipped?'В Codex уже есть свой сервер с этим именем — доступ не записан':'Сервер '+esc(x.name)+' в Codex')+'</span></span>'+serviceState(x,v.tone)+'</div>').join(''):'';
- if(on&&!services.length)$('service-rows').innerHTML='<p class="empty">Пока ни одного. Когда Денис выдаст доступ, например к Тильде, он появится здесь в течение минуты.</p>';
+ if(on&&!services.length)$('service-rows').innerHTML='<p class="empty">Пока ни одного. Когда компания выдаст доступ, например к Тильде, он появится здесь в течение минуты.</p>';
 
  const tools=[];
  if(s.employee){
   tools.push(['Войти в GitHub','Нужно один раз — для правил команды и переноса проектов.','github','Войти']);
-  tools.push(['Правила и скиллы команды',s.harness?'Подключена версия '+s.harness+'. Обновите, если Денис попросил.':'Ещё не подключены.','harness',s.harness?'Обновить':'Подключить']);
+  tools.push(['Правила и скиллы команды',s.harness?'Подключена версия '+s.harness+'. Обновите, когда компания попросит.':'Ещё не подключены.','harness',s.harness?'Обновить':'Подключить']);
   if(s.platform==='darwin')tools.push(['Проекты со старого сервера','Перенесёт треды и папки проектов. Codex закроется на время переноса.','migrate','Перенести']);
-  tools.push(['Другой файл доступа','Если Денис прислал новый .moxaccess.','import','Выбрать файл']);
+  tools.push(['Другой файл доступа','Если компания выдала новый .moxaccess.','import','Выбрать файл']);
  }
  $('tools').hidden=!tools.length;
- $('tool-rows').innerHTML=tools.map(t=>'<div class="row"><span class="what"><span class="title">'+esc(t[0])+'</span><span class="note">'+esc(t[1])+'</span></span><button class="btn" data-run="'+t[2]+'"'+(busy||s.busy?' disabled':'')+'>'+esc(t[3])+'</button></div>').join('');
+ $('tool-rows').innerHTML=tools.map(t=>'<div class="row"><span class="what"><span class="title">'+esc(t[0])+'</span><span class="note">'+esc(t[1])+'</span></span><button class="btn soft" data-run="'+t[2]+'"'+(busy||s.busy?' disabled':'')+'>'+esc(t[3])+'</button></div>').join('');
 
  const facts=[['Приложение','v'+s.version],['Сотрудник',s.employee||'—'],['Режим',on?'рабочий':'личный'],['Связь со шлюзом',on?(s.tunnel.connected?'есть':'нет'+(s.tunnel.lastError?' — '+s.tunnel.lastError:'')):'—'],['Доступ к Codex',s.keyText||'—'],['Вход в Codex',on?(s.login||'—'):'—'],['Правила команды',s.harness?'v'+s.harness:'—'],['Система',s.platform]];
  $('facts').innerHTML=facts.map(f=>'<dt>'+esc(f[0])+'</dt><dd>'+esc(f[1])+'</dd>').join('');
@@ -202,7 +209,7 @@ $('file').onchange=async()=>{
 $('check').onclick=()=>act('/api/check','Проверяю связь');
 $('copy').onclick=async()=>{
  const text=[...document.querySelectorAll('#facts dt')].map((dt,i)=>dt.textContent+': '+document.querySelectorAll('#facts dd')[i].textContent).join('\n')+'\n\n'+logText;
- try{await navigator.clipboard.writeText(text);say('Скопировано — отправьте Денису.');}catch{say('Не удалось скопировать. Выделите журнал вручную.',true);}
+ try{await navigator.clipboard.writeText(text);say('Скопировано — отправьте в поддержку компании.');}catch{say('Не удалось скопировать. Выделите журнал вручную.',true);}
 };
 for(const ev of ['dragover','dragenter'])document.addEventListener(ev,e=>{e.preventDefault();document.body.classList.add('drop');});
 for(const ev of ['dragleave','drop'])document.addEventListener(ev,e=>{e.preventDefault();document.body.classList.remove('drop');});
