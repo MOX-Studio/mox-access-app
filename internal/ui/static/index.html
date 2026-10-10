@@ -32,7 +32,7 @@ h1 .dot{color:var(--accent)}
 .btn:disabled{opacity:.45;cursor:default}
 .btn.main::before{content:"";width:10px;height:10px;border-radius:50%;background:var(--accent)}
 .btn.main.warm::before{background:var(--high)}
-.btn.quiet{background:transparent;color:var(--mute);padding:0 14px}
+.btn.quiet{background:transparent;color:var(--mid);padding:0 14px}
 .btn.quiet:hover{background:var(--surface-2);color:var(--text)}
 
 .notice{margin:32px 0 0;padding:18px 22px;border-radius:20px;background:var(--surface);display:flex;gap:16px;align-items:center;justify-content:space-between;flex-wrap:wrap}
@@ -48,12 +48,12 @@ h2 .rest{color:var(--mute)}
 .row:last-child{border-bottom:1px solid var(--line)}
 .row .what{min-width:0}
 .row .title{display:block}
-.row .note{display:block;color:var(--mute);font-size:13px;margin-top:2px}
+.row .note{display:block;color:var(--mid);font-size:13px;margin-top:2px}
 .state{display:inline-flex;align-items:center;gap:8px;color:var(--mid);font-size:13px;white-space:nowrap}
 .state::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--mute)}
 .state.ok::before{background:var(--accent)}
 .state.warn::before{background:var(--high)}
-.empty{color:var(--mute);font-size:14px;margin:14px 0 0}
+.empty{color:var(--mid);font-size:14px;margin:14px 0 0}
 
 details{margin-top:48px;border-top:1px solid var(--line);padding-top:18px}
 summary{cursor:pointer;color:var(--mid);list-style:none;display:flex;align-items:center;gap:10px}
@@ -61,8 +61,8 @@ summary::-webkit-details-marker{display:none}
 summary::before{content:"";width:8px;height:8px;border-right:1.5px solid var(--mute);border-bottom:1.5px solid var(--mute);transform:rotate(-45deg);transition:transform .2s ease}
 details[open] summary::before{transform:rotate(45deg)}
 .facts{display:grid;grid-template-columns:minmax(150px,auto) 1fr;gap:8px 20px;margin:20px 0 0;font-size:13px}
-.facts dt{color:var(--mute)}
-.facts dd{margin:0;font-family:var(--mono);color:var(--mid);word-break:break-word}
+.facts dt{color:var(--mid)}
+.facts dd{margin:0;font-family:var(--mono);color:var(--text);word-break:break-word}
 .support-actions{display:flex;flex-wrap:wrap;gap:10px;margin:18px 0}
 pre{margin:0;background:#1B1B1B;border-radius:12px;padding:14px 16px;font:12px/1.55 var(--mono);color:var(--mid);max-height:260px;overflow:auto;white-space:pre-wrap}
 
