@@ -24,6 +24,21 @@ import (
 //go:embed static/index.html static/inter-tight.woff
 var static embed.FS
 
+// ownHost answers only requests addressed to the listener itself. A site whose domain is re-pointed at 127.0.0.1 (DNS
+// rebinding) becomes same-origin with the page and could read the status and log and send the page's header; its
+// requests still carry its own name in Host, and are refused here.
+func ownHost(addr string, next http.Handler) http.Handler {
+	_, port, _ := net.SplitHostPort(addr)
+	allowed := map[string]bool{addr: true, "localhost:" + port: true}
+	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		if !allowed[r.Host] {
+			http.Error(rw, "forbidden", http.StatusForbidden)
+			return
+		}
+		next.ServeHTTP(rw, r)
+	})
+}
+
 // guarded rejects a POST without the page's own header: a custom header makes a browser preflight a cross-site
 // request, and this server answers no CORS, so another site cannot press the buttons (or import a file) for the employee.
 func guarded(rw http.ResponseWriter, r *http.Request) bool {
@@ -58,7 +73,7 @@ func (w *Web) Start() (string, error) {
 		return "", err
 	}
 	w.url = "http://" + ln.Addr().String()
-	w.srv = &http.Server{Handler: w.handler()}
+	w.srv = &http.Server{Handler: ownHost(ln.Addr().String(), w.handler())}
 	go w.srv.Serve(ln)
 	return w.url, nil
 }

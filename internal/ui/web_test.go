@@ -60,3 +60,32 @@ func TestStatusAndPage(t *testing.T) {
 		t.Fatalf("enable without bundle must fail: %d", resp.StatusCode)
 	}
 }
+
+func TestForeignHostIsRefused(t *testing.T) {
+	dir := t.TempDir()
+	a, _ := app.New(filepath.Join(dir, "app"), noOps{home: filepath.Join(dir, ".codex")}, func(string) {})
+	w := &Web{App: a, Version: "test", LogPath: filepath.Join(dir, "log")}
+	url, err := w.Start()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer w.Stop()
+	for _, path := range []string{"/api/status", "/api/log", "/"} {
+		req, _ := http.NewRequest(http.MethodGet, url+path, nil)
+		req.Host = "attacker.example:80"
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if resp.StatusCode != http.StatusForbidden {
+			t.Fatalf("%s from a rebound host: %d", path, resp.StatusCode)
+		}
+	}
+	req, _ := http.NewRequest(http.MethodPost, url+"/api/enable", nil)
+	req.Host, _ = strings.CutPrefix(url, "http://")
+	req.Host = strings.Replace(req.Host, "127.0.0.1", "evil.test", 1)
+	req.Header.Set("X-MOX-Access", "1")
+	if resp, _ := http.DefaultClient.Do(req); resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("POST from a rebound host: %d", resp.StatusCode)
+	}
+}
