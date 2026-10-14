@@ -477,7 +477,8 @@ func TestSyncSecretsWritesGrantedKeysAndTakesThemAway(t *testing.T) {
 		gatewaySecrets = append([]codex.Secret{}, s...)
 		gatewayMu.Unlock()
 	}
-	set(tilda)
+	gcore := codex.Secret{Name: "GCORE_API_TOKEN", Kind: "env", Value: "12345$gcore-secret-value-0003", Version: 1}
+	set(tilda, gcore)
 	defer set()
 	if changed, err := a.SyncSecrets(context.Background()); changed || err != nil {
 		t.Fatalf("personal mode must not sync: %v %v", changed, err)
@@ -492,17 +493,18 @@ func TestSyncSecretsWritesGrantedKeysAndTakesThemAway(t *testing.T) {
 		t.Fatalf("grant: %v %v", changed, err)
 	}
 	cfg, _ := os.ReadFile(cfgPath)
-	if !strings.Contains(string(cfg), "[mcp_servers.tilda] # MOX ACCESS secret") || !strings.Contains(string(cfg), "Bearer tilda-secret-value-0001") {
+	if !strings.Contains(string(cfg), "[mcp_servers.tilda] # MOX ACCESS secret") || !strings.Contains(string(cfg), "Bearer tilda-secret-value-0001") ||
+		!strings.Contains(string(cfg), "[shell_environment_policy.set] # MOX ACCESS secret\nGCORE_API_TOKEN = \"12345$gcore-secret-value-0003\" # MOX ACCESS secret") {
 		t.Fatalf("config.toml:\n%s", cfg)
 	}
-	if s := a.Status(); !s.SecretsPending || len(s.Secrets) != 1 || s.Secrets[0].Name != "tilda" || len(ops.steps) != 0 {
+	if s := a.Status(); !s.SecretsPending || len(s.Secrets) != 2 || s.Secrets[0].Name != "tilda" || s.Secrets[1].Skipped || len(ops.steps) != 0 {
 		t.Fatalf("status %+v, steps %v (Codex must not be restarted on its own)", s, ops.steps)
 	}
 	if changed, _ := a.SyncSecrets(context.Background()); changed {
 		t.Fatal("same grant rewrote config.toml")
 	}
 	for _, f := range []string{rec.String(), readAll(t, filepath.Join(dir, "app", "state.json"))} {
-		if strings.Contains(f, tilda.Value) {
+		if strings.Contains(f, tilda.Value) || strings.Contains(f, gcore.Value) {
 			t.Fatalf("value leaked into log or state:\n%s", f)
 		}
 	}
@@ -510,7 +512,7 @@ func TestSyncSecretsWritesGrantedKeysAndTakesThemAway(t *testing.T) {
 	changed, _ = a.SyncSecrets(context.Background())
 	gatewayRevoked.Store(false)
 	cfg, _ = os.ReadFile(cfgPath)
-	if !changed || strings.Contains(string(cfg), "tilda") || a.Status().KeyText != "ключ отозван" {
+	if !changed || strings.Contains(string(cfg), "tilda") || strings.Contains(string(cfg), "GCORE") || a.Status().KeyText != "ключ отозван" {
 		t.Fatalf("revoked key kept the secret: %v\n%s", changed, cfg)
 	}
 	a.SyncSecrets(context.Background())
@@ -523,7 +525,7 @@ func TestSyncSecretsWritesGrantedKeysAndTakesThemAway(t *testing.T) {
 	}
 	backups, _ := filepath.Glob(cfgPath + ".bak-mox-*")
 	for _, b := range backups {
-		if strings.Contains(readAll(t, b), tilda.Value) {
+		if strings.Contains(readAll(t, b), tilda.Value) || strings.Contains(readAll(t, b), gcore.Value) {
 			t.Fatalf("backup %s keeps the value", b)
 		}
 	}

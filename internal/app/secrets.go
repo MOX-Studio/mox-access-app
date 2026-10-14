@@ -18,7 +18,8 @@ import (
 )
 
 // SyncSecrets brings the personal service keys the gateway grants to this employee (GET /mox/secrets) into Codex's
-// config.toml as marked [mcp_servers.<name>] tables, and takes away the ones withdrawn. A revoked MOX key takes away all
+// config.toml — marked [mcp_servers.<name>] tables and marked variables of [shell_environment_policy.set] — and takes
+// away the ones withdrawn. A revoked MOX key takes away all
 // of them. Codex is not restarted: an answer in progress would be cut off, so the window asks the employee to restart it
 // when convenient (state.SecretsPending). Values never reach the log, the state file or a backup. Runs only in corporate
 // mode with the tunnel up; changed tells whether config.toml was rewritten.
@@ -84,7 +85,7 @@ func (a *App) applySecrets(granted []codex.Secret) (bool, error) {
 		infos = append(infos, state.Secret{Name: s.Name, Version: s.Version, Skipped: skip})
 		names = append(names, s.Name+" v"+strconv.Itoa(s.Version))
 		if skip {
-			a.log("⚠ ключ «" + s.Name + "» не записан: в Codex уже есть свой сервер с таким именем или ключ не прошёл проверку")
+			a.log("⚠ ключ «" + s.Name + "» не записан: в Codex уже есть свой сервер или своя переменная с таким именем, ключ не прошёл проверку или приложение его не знает")
 		}
 	}
 	a.mu.Lock()
